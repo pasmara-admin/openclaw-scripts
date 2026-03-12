@@ -12,7 +12,7 @@ def main():
     )
     cursor = conn.cursor(dictionary=True)
     
-    # Prendi tutti i prodotti attivi etichettati drop
+    # Prendi tutti i prodotti attivi etichettati drop (niente k.ps_qty)
     query_products = """
         SELECT p.id, p.reference as sku, s.name as supplier
         FROM dat_product p
@@ -27,7 +27,7 @@ def main():
     cursor.execute(query_products)
     drop_products = cursor.fetchall()
     
-    # Prendi le vendite degli ultimi 30 gg (per avere una media giornaliera robusta)
+    # Prendi le vendite degli ultimi 30 gg
     query_sales = """
         SELECT p.reference as sku, SUM(r.qty) as total_qty_30d
         FROM sal_order_row r
@@ -42,16 +42,59 @@ def main():
     cursor.close()
     conn.close()
     
-    # Costruisci dizionario sku -> dati base
+    print("Connessione a PrestaShop per controllo stock...")
+    conn_p = mysql.connector.connect(
+        host="62.84.190.199",
+        user="john",
+        password="qARa6aRozi6I",
+        database="produceshop",
+        ssl_disabled=True
+    )
+    cursor_p = conn_p.cursor(dictionary=True)
+    
+    query_stock_main = """
+        SELECT p.reference, s.quantity
+        FROM ps_product p
+        JOIN ps_stock_available s ON p.id_product = s.id_product AND s.id_product_attribute = 0
+        WHERE s.id_shop = 1
+    """
+    cursor_p.execute(query_stock_main)
+    stock_main = cursor_p.fetchall()
+    
+    query_stock_attr = """
+        SELECT pa.reference, s.quantity
+        FROM ps_product_attribute pa
+        JOIN ps_stock_available s ON pa.id_product = s.id_product AND pa.id_product_attribute = s.id_product_attribute
+        WHERE s.id_shop = 1
+    """
+    cursor_p.execute(query_stock_attr)
+    stock_attr = cursor_p.fetchall()
+    
+    ps_stock = {}
+    for row in stock_main:
+        if row['reference']: ps_stock[row['reference'].upper()] = int(row['quantity'])
+    for row in stock_attr:
+        if row['reference']: ps_stock[row['reference'].upper()] = int(row['quantity'])
+        
+    cursor_p.close()
+    conn_p.close()
+    
     stats = {}
     for p in drop_products:
         sku = p['sku'].lower()
-        stats[sku] = {
-            'SKU': p['sku'].upper(),
-            'Fornitore': p['supplier'] or "Sconosciuto",
-            'Vendita Media Giornaliera (30gg)': 0.0,
-            'Click (Ultimi 7gg)': 0
-        }
+        sku_upper = p['sku'].upper()
+        
+        # Filtro: Disponibili (Stock >= 1 su PrestaShop)
+        stock_val = ps_stock.get(sku_upper, 0)
+        
+        if stock_val >= 1:
+            stats[sku] = {
+                'SKU': sku_upper,
+                'Fornitore': p['supplier'] or "Sconosciuto",
+                'Stock Attuale': stock_val,
+                'Vendita Media Giornaliera (30gg)': 0.0,
+                'Click (Ultimi 7gg)': 0
+            }
         
     for s in sales_data:
         sku = s['sku'].lower()
@@ -88,7 +131,6 @@ def main():
     except Exception as e:
         print(f"Ads Error: {e}")
 
-    # Logica di divisione
     high_clicks_low_sales = []
     zero_clicks_zero_sales = []
     
@@ -96,28 +138,23 @@ def main():
         clicks = data['Click (Ultimi 7gg)']
         avg_sales = data['Vendita Media Giornaliera (30gg)']
         
-        # Criterio per File 1: Clicks > 0, vendite nulle o bassissime (< 0.1 al giorno)
         if clicks > 0 and avg_sales < 0.1:
             high_clicks_low_sales.append(data)
             
-        # Criterio per File 2: Zero click e Zero vendite
         if clicks == 0 and avg_sales == 0.0:
             zero_clicks_zero_sales.append(data)
             
-    # Ordiniamo il primo file per click discendenti
     high_clicks_low_sales = sorted(high_clicks_low_sales, key=lambda x: x['Click (Ultimi 7gg)'], reverse=True)
     
-    # Generazione Excel 1
     df1 = pd.DataFrame(high_clicks_low_sales)
-    path1 = "/tmp/Drop_HighClicks_LowSales.xlsx"
+    path1 = "/root/.openclaw/workspace-marketing/Drop_HighClicks_LowSales_InStock.xlsx"
     df1.to_excel(path1, index=False)
     
-    # Generazione Excel 2
     df2 = pd.DataFrame(zero_clicks_zero_sales)
-    path2 = "/tmp/Drop_ZeroClicks_ZeroSales.xlsx"
+    path2 = "/root/.openclaw/workspace-marketing/Drop_ZeroClicks_ZeroSales_InStock.xlsx"
     df2.to_excel(path2, index=False)
     
-    print(f"File generati in /tmp. File1: {len(high_clicks_low_sales)} rows, File2: {len(zero_clicks_zero_sales)} rows.")
+    print(f"File generati. File1: {len(high_clicks_low_sales)} rows, File2: {len(zero_clicks_zero_sales)} rows.")
 
 if __name__ == "__main__":
     main()
