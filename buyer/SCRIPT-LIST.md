@@ -1,0 +1,1 @@
+- analisi-sku.py: Estrazione dati (stock, venduto, prezzo vendita e acquisto) per lista di SKU passati come input.
