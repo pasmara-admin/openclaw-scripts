@@ -128,7 +128,12 @@ with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
 
 connection.close()
 
-with open("/tmp/body_report_rev.txt", "w") as f: f.write("In allegato quanto in oggetto.\\n\\nJohn Finance 📊")
+body_text = "In allegato quanto in oggetto.\n\nJohn Finance 📊"
+if args.body_file and os.path.exists(args.body_file):
+    with open(args.body_file, 'r') as bf:
+        body_text = bf.read()
+with open("/tmp/body_report_rev.txt", "w") as f:
+    f.write(body_text)
 env = os.environ.copy()
 env["GOG_KEYRING_PASSWORD"] = "produceshop"
 env["GOG_ACCOUNT"] = "admin@produceshoptech.com"
