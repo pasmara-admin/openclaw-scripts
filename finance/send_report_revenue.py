@@ -8,6 +8,7 @@ import subprocess
 parser = argparse.ArgumentParser()
 parser.add_argument('--start_date', type=str, required=True)
 parser.add_argument('--end_date', type=str, required=True)
+parser.add_argument('--body_file', type=str, required=False)
 args = parser.parse_args()
 
 start_date = args.start_date
