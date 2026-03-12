@@ -24,3 +24,4 @@ Lista minimale degli script per il dipartimento Marketing. Consultare prima di c
 | realtime_incidence.py | Calcolo in tempo reale dell'incidenza globale e per country sul sito ProduceShop (Ads/Kanguro). |
 | forecast_oos_pricing.py | Estrazione prodotti con vendite >0 e Out Of Stock stimato in <14gg (Kanguro sales + PrestaShop stock) per revisione prezzi. |
 | drop_performance.py | Estrazione delle performance di vendita e di traffico (Google Ads + Kanguro) per i prodotti etichettati in Dropshipping. |
+| send_drop_report.py | Genera e invia via mail il report giornaliero sulle performance Drop (Kanguro + Ads). |
