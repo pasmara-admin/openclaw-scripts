@@ -143,7 +143,7 @@ def main():
         clicks = data['Click (Ultimi 7gg)']
         avg_sales = data['Vendita Media Giornaliera (30gg)']
         
-        if clicks > 0 and avg_sales < 0.1:
+        if clicks >= 10 and avg_sales < 0.1:
             high_clicks_low_sales.append(data)
             
         if clicks == 0 and avg_sales == 0.0:
