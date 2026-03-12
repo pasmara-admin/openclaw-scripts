@@ -121,33 +121,40 @@ else:
 file_name = f'Report_Revenue_{start_date.replace("-","")}_to_{end_date.replace("-","")}.xlsx'
 file_path = f'/tmp/{file_name}'
 with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
+    # 1. Database Unico
     df_out.to_excel(writer, sheet_name='Database Unico (Per Pivot)', index=False)
     
-    # Sheet name based on start_date month
-    month_str = start_date.replace("-", "")[:6]
-    df_out.to_excel(writer, sheet_name=month_str, index=False)
+    # 2. Individual sheets per month
+    df_out['Temp_Month'] = pd.to_datetime(df_out['Invoice Date']).dt.strftime('%Y%m')
+    months = df_out['Temp_Month'].unique()
+    for m in sorted(months):
+        df_month = df_out[df_out['Temp_Month'] == m].drop(columns=['Temp_Month'])
+        df_month.to_excel(writer, sheet_name=str(m), index=False)
+    df_out = df_out.drop(columns=['Temp_Month'])
     
+    # 3. Note Credito
     if len(df_cn) > 0:
         if 'Residual Document Value' not in df_cn.columns:
             df_cn['Residual Document Value'] = ''
         df_cn.to_excel(writer, sheet_name='Note Credito', index=False)
         worksheet = writer.sheets['Note Credito']
         # Add formula: =Original Gross - Total Refunded
-        orig_gross_col = df_cn.columns.get_loc('Original Gross') + 1
-        tot_ref_col = df_cn.columns.get_loc('Total Refunded') + 1
-        res_val_col = df_cn.columns.get_loc('Residual Document Value') + 1
-        
-        for row in range(2, len(df_cn) + 2):
-            orig_gross_cell = worksheet.cell(row=row, column=orig_gross_col).coordinate
-            tot_ref_cell = worksheet.cell(row=row, column=tot_ref_col).coordinate
-            worksheet.cell(row=row, column=res_val_col).value = f"={orig_gross_cell}-{tot_ref_cell}"
+        if 'Original Gross' in df_cn.columns and 'Total Refunded' in df_cn.columns:
+            orig_gross_col = df_cn.columns.get_loc('Original Gross') + 1
+            tot_ref_col = df_cn.columns.get_loc('Total Refunded') + 1
+            res_val_col = df_cn.columns.get_loc('Residual Document Value') + 1
+            
+            for row in range(2, len(df_cn) + 2):
+                orig_gross_cell = worksheet.cell(row=row, column=orig_gross_col).coordinate
+                tot_ref_cell = worksheet.cell(row=row, column=tot_ref_col).coordinate
+                worksheet.cell(row=row, column=res_val_col).value = f"={orig_gross_cell}-{tot_ref_cell}"
     else:
         df_cn.to_excel(writer, sheet_name='Note Credito', index=False)
 
 connection.close()
 
 # Send email
-subject = f"{month_str} - Report_Revenue from {start_date.replace('-', '')} to {end_date.replace('-', '')}"
+subject = f"Master Report_Revenue from {start_date.replace('-', '')} to {end_date.replace('-', '')}"
 body = "In allegato quanto in oggetto.\n\nJohn Finance 📊"
 body_path = "/tmp/body_report_rev.txt"
 with open(body_path, "w") as f:
