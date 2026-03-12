@@ -64,9 +64,8 @@ def fetch_ads_costs():
     
     accounts = {
         'Italia': '2327095345',
-        'Switzerland': '4100556149',
         'France': '8633848117',
-        'España': '6241768674', # Wait, in Ads IDs from SOUL.md: ES is 624-176-8674. Wait, the fetch_today_spend.py had DE and ES swapped?
+        'España': '9641081570', # Wait, in Ads IDs from SOUL.md: ES is 624-176-8674. Wait, the fetch_today_spend.py had DE and ES swapped?
         # Let's check SOUL.md:
         # ES: 624-176-8674
         # DE: 964-108-1570
@@ -76,10 +75,9 @@ def fetch_ads_costs():
     accounts_by_country = {
         'Italia': '2327095345',
         'France': '8633848117',
-        'España': '6241768674',
-        'Deutschland': '9641081570',
-        'Österreich': '4654715733',
-        'Switzerland': '4100556149'
+        'España': '9641081570',
+        'Deutschland': '6241768674',
+        'Österreich': '4100556149',
     }
 
     query = """
