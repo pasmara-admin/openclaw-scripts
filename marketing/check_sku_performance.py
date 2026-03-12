@@ -1,8 +1,18 @@
 import sys
+import argparse
 from google.ads.googleads.client import GoogleAdsClient
 from google.ads.googleads.errors import GoogleAdsException
 
 def main():
+    parser = argparse.ArgumentParser(description="Get performance metrics for a specific SKU from Google Ads.")
+    parser.add_argument("sku", help="The SKU to search for (e.g., s6316r). Will be converted to lowercase as per protocol.")
+    parser.add_argument("--customer-id", default="2327095345", help="Google Ads Customer ID (default is IT: 2327095345).")
+    parser.add_argument("--days", default="LAST_30_DAYS", help="Timeframe for the query (default: LAST_30_DAYS).")
+    args = parser.parse_args()
+
+    sku = args.sku.lower()
+    customer_id = args.customer_id.replace('-', '')
+
     try:
         client = GoogleAdsClient.load_from_storage(path="/root/.openclaw/workspace/google-ads.yaml")
     except Exception as e:
@@ -11,9 +21,6 @@ def main():
 
     ga_service = client.get_service("GoogleAdsService")
 
-    customer_id = '2327095345' # IT
-    sku = 'S6316'
-    
     query = f"""
         SELECT
           segments.product_item_id,
@@ -23,7 +30,7 @@ def main():
           metrics.conversions,
           metrics.conversions_value
         FROM shopping_performance_view
-        WHERE segments.date DURING LAST_30_DAYS
+        WHERE segments.date DURING {args.days}
           AND segments.product_item_id = '{sku}'
     """
 
@@ -50,9 +57,9 @@ def main():
         
         if found:
             cost = total_cost_micros / 1000000
-            print(f"IT - SKU: {sku} | Impression: {total_impressions} | Clic: {total_clicks} | Costo: €{cost:.2f} | Conv: {total_conversions:.2f} | Valore Conv: €{total_conversions_value:.2f}")
+            print(f"[{customer_id}] SKU: {sku} ({args.days}) | Impression: {total_impressions} | Clic: {total_clicks} | Costo: €{cost:.2f} | Conv: {total_conversions:.2f} | Valore Conv: €{total_conversions_value:.2f}")
         else:
-            print(f"IT - SKU: {sku} | Nessun dato rilevato negli ultimi 30 giorni.")
+            print(f"[{customer_id}] SKU: {sku} ({args.days}) | Nessun dato rilevato.")
 
     except GoogleAdsException as ex:
         print(f"Error API - {ex}")
