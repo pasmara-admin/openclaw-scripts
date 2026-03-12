@@ -3,7 +3,31 @@ import sys
 from openpyxl import Workbook
 import subprocess
 
-skus = ['SE865V', 'SE867N', 'SE865G', 'SE867V', 'SE825GS', 'SE892GC', 'SE867GS']
+skus_raw = """SGA800SNJY
+SGA800SNJB
+SGA800SNJR
+SGA046ALTN
+SGA046ALTV
+SGA046ALTB
+SGA046ALTG
+SGA054CHIA
+SGA054CHIG
+SGA054CHIM
+SGA054CHIN
+SGA054CHIB
+SGA800NEWN
+SGA800NEWB
+SGA800AMAN
+SGA800AMAA
+SGA800AMAB
+SGA053LASB
+BIS70QUANER
+BIS70ROTBIA
+SGA800SFRA
+SGA054HOLG
+SGA800DALS"""
+
+skus = [s.strip() for s in skus_raw.split('\n') if s.strip()]
 sku_list_str = ', '.join([f"'{s}'" for s in skus])
 
 ps_data = {}
@@ -23,35 +47,34 @@ query_ps = f"""
     LEFT JOIN ps_specific_price sp ON pa.id_product = sp.id_product AND sp.id_shop IN (0, 1) AND (sp.id_product_attribute = 0 OR sp.id_product_attribute = pa.id_product_attribute)
     WHERE sa.id_shop = 1 AND pa.reference IN ({sku_list_str})
 """
+
 cmd = ["mysql", "--skip-ssl-verify-server-cert", "-h", "62.84.190.199", "-u", "john", "-ppqARa6aRozi6I", "produceshop", "-B", "-N", "-e", query_ps]
 res = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-if res.returncode != 0:
-    print(f"Error reading PS: {res.stderr}")
-    sys.exit(1)
 
-for line in res.stdout.strip().split('\n'):
-    if not line: continue
-    parts = line.split('\t')
-    if len(parts) >= 6:
-        sku = parts[0]
-        stock = int(parts[1])
-        base_price = float(parts[2])
-        impact_price = float(parts[3])
-        reduction_str = parts[4]
-        reduction_type = parts[5]
-        
-        final_price = base_price + impact_price
-        if reduction_str and reduction_str != 'NULL':
-            reduction = float(reduction_str)
-            if reduction_type == 'amount':
-                final_price -= reduction
-            elif reduction_type == 'percentage':
-                final_price -= (final_price * reduction)
-                
-        ps_data[sku] = {
-            'stock': stock,
-            'price': final_price
-        }
+if res.returncode == 0:
+    for line in res.stdout.strip().split('\n'):
+        if not line: continue
+        parts = line.split('\t')
+        if len(parts) >= 6:
+            sku = parts[0]
+            stock = int(parts[1])
+            base_price = float(parts[2])
+            impact_price = float(parts[3])
+            reduction_str = parts[4]
+            reduction_type = parts[5]
+            
+            final_price = base_price + impact_price
+            if reduction_str and reduction_str != 'NULL':
+                reduction = float(reduction_str)
+                if reduction_type == 'amount':
+                    final_price -= reduction
+                elif reduction_type == 'percentage':
+                    final_price -= (final_price * reduction)
+                    
+            ps_data[sku] = {
+                'stock': stock,
+                'price': final_price
+            }
 
 conn_k = pymysql.connect(
     host='34.38.166.212', user='john', password='3rmiCyf6d~MZDO41',
@@ -77,12 +100,13 @@ conn_k.close()
 wb = Workbook()
 ws = wb.active
 ws.title = "Report INFO"
-ws.append(["SKU", "Giacenza (Real-Time PS)", "Venduti (da Ott 2025)", "Prezzo Scontato (€)"])
+ws.append(["SKU", "Giacenza (Real-Time PS)", "Venduti (da Ottobre 2025)", "Prezzo Scontato Attuale (€)"])
 
 for sku in skus:
     data_ps = ps_data.get(sku, {'stock': 0, 'price': 0.0})
     sold = sales_data.get(sku, 0)
     ws.append([sku, data_ps['stock'], sold, round(data_ps['price'], 2)])
 
-wb.save("/root/.openclaw/workspace-marketing/Report_INFO_Simone.xlsx")
-print("Excel saved to /root/.openclaw/workspace-marketing/Report_INFO_Simone.xlsx")
+file_path = "/root/.openclaw/workspace-marketing/Report_INFO_Massivo_Simone.xlsx"
+wb.save(file_path)
+print(f"Excel saved to {file_path}")
