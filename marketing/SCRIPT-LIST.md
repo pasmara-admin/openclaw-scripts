@@ -20,7 +20,4 @@ Lista minimale degli script per il dipartimento Marketing. Consultare prima di c
 | get_prices_vat.py | Estrazione prezzi con IVA calcolata per country. |
 | get_product_stats.py | Generazione di report statistici su prodotti e conversioni. |
 | get_top_campaigns.py | Estrazione delle migliori campagne in base all'incidenza/revenue. |
-| get_wac.sh | Script bash per il calcolo e retrieval del Weighted Average Cost dal Kanguro. |
 | recalc_incidenza.py | Ricalcolo massivo dell'incidenza aggregando spesa e fatturato. |
-| report_tu100.py | Report vendite e metriche per i top/under performer (TU 100). |
-| test_info_usd.sh | Script di test/utility per estrazione e conversione prezzi in valute estere (es. USD). |
