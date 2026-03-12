@@ -1,0 +1,30 @@
+import sys
+from google.ads.googleads.client import GoogleAdsClient
+
+def main():
+    client = GoogleAdsClient.load_from_storage(path="/root/.openclaw/workspace/google-ads.yaml")
+    ga_service = client.get_service("GoogleAdsService")
+    customer_id = '2327095345' # IT
+    sku = 's6316r'
+    
+    query = f"""
+        SELECT
+          segments.product_item_id,
+          segments.product_title
+        FROM shopping_performance_view
+        WHERE segments.date DURING LAST_30_DAYS
+          AND segments.product_item_id = '{sku}'
+        LIMIT 1
+    """
+    try:
+        request = client.get_type("SearchGoogleAdsRequest")
+        request.customer_id = customer_id
+        request.query = query
+        response = ga_service.search(request=request)
+        for row in response:
+            print(f"Title in Ads: {row.segments.product_title}")
+    except Exception as e:
+        print(f"Error - {e}")
+
+if __name__ == "__main__":
+    main()
