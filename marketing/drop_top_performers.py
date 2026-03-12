@@ -1,6 +1,7 @@
 import pandas as pd
 import mysql.connector
 from google.ads.googleads.client import GoogleAdsClient
+from collections import defaultdict
 
 def main():
     print("Connessione al DB Kanguro per estrazione vendite prodotti Drop (Ultimi 30gg)...")
@@ -12,8 +13,13 @@ def main():
     )
     cursor = conn.cursor(dictionary=True)
     
+    # Prendi le vendite raggruppate per "parent_reference" per spalmare i costi sulle varianti
+    # Usiamo parent_reference per raggruppare i prodotti (es. per calcolare l'incidenza a livello parent)
     query_sales = """
-        SELECT p.id, p.reference as sku, s.name as supplier, SUM(r.total_price) as revenue
+        SELECT 
+            COALESCE(p.parent_reference, p.reference) as parent_sku,
+            s.name as supplier, 
+            SUM(r.total_price) as revenue
         FROM sal_order_row r
         JOIN sal_order o ON r.order_id = o.id
         JOIN dat_product p ON r.product_id = p.id
@@ -25,22 +31,45 @@ def main():
               JOIN dat_label l ON pl.label_id = l.id
               WHERE LOWER(l.name) LIKE '%drop%'
           )
-        GROUP BY p.id, p.reference, s.name
+        GROUP BY parent_sku, s.name
         HAVING revenue > 0
     """
     cursor.execute(query_sales)
     sales_data = cursor.fetchall()
+    
+    # Prendi l'associazione child -> parent per mappare correttamente i click di Google Ads
+    query_mapping = """
+        SELECT 
+            reference as child_sku, 
+            COALESCE(parent_reference, reference) as parent_sku
+        FROM dat_product 
+        WHERE id IN (
+            SELECT pl.product_id FROM dat_product_label pl
+            JOIN dat_label l ON pl.label_id = l.id
+            WHERE LOWER(l.name) LIKE '%drop%'
+        )
+    """
+    cursor.execute(query_mapping)
+    mapping_data = cursor.fetchall()
+    
     cursor.close()
     conn.close()
     
+    # Creiamo dizionario di mappatura child -> parent
+    child_to_parent = {}
+    for row in mapping_data:
+        if row['child_sku'] and row['parent_sku']:
+            child_to_parent[row['child_sku'].lower()] = row['parent_sku'].lower()
+    
+    # Inizializziamo le statistiche a livello di PARENT
     stats = {}
     for row in sales_data:
-        sku = row['sku'].lower()
-        stats[sku] = {
-            'SKU': row['sku'].upper(),
+        parent_sku = row['parent_sku'].lower()
+        stats[parent_sku] = {
+            'Parent SKU': row['parent_sku'].upper(),
             'Fornitore': row['supplier'] or "Sconosciuto",
-            'Fatturato (Ultimi 30gg)': float(row['revenue']),
-            'Costo Ads (Ultimi 30gg)': 0.0
+            'Fatturato Parent (Ultimi 30gg)': float(row['revenue']),
+            'Costo Ads Parent (Ultimi 30gg)': 0.0
         }
             
     print("Estrazione Spesa da Google Ads (Ultimi 30gg)...")
@@ -66,8 +95,13 @@ def main():
                 for batch in stream:
                     for row in batch.results:
                         item_id = row.segments.product_item_id.lower()
-                        if item_id in stats:
-                            stats[item_id]['Costo Ads (Ultimi 30gg)'] += (row.metrics.cost_micros / 1000000.0)
+                        cost = row.metrics.cost_micros / 1000000.0
+                        
+                        # Trova a quale parent appartiene il click (usando la mappa o direttamente l'ID se è già un parent)
+                        parent_sku = child_to_parent.get(item_id, item_id)
+                        
+                        if parent_sku in stats:
+                            stats[parent_sku]['Costo Ads Parent (Ultimi 30gg)'] += cost
             except Exception:
                 pass
     except Exception as e:
@@ -75,25 +109,25 @@ def main():
 
     top_performers = []
     
-    for sku, data in stats.items():
-        revenue = data['Fatturato (Ultimi 30gg)']
-        cost = data['Costo Ads (Ultimi 30gg)']
+    for parent_sku, data in stats.items():
+        revenue = data['Fatturato Parent (Ultimi 30gg)']
+        cost = data['Costo Ads Parent (Ultimi 30gg)']
         
         if revenue > 0:
             incidenza = (cost / revenue) * 100
-            # Vogliamo incidenza <= 10% (ma anche i prodotti con 0 spesa e >0 vendite che avranno incidenza 0%)
+            # Vogliamo incidenza <= 10% 
             if incidenza <= 10.0:
-                data['Incidenza %'] = round(incidenza, 2)
+                data['Incidenza Marketing % (Halo Effect)'] = round(incidenza, 2)
                 top_performers.append(data)
                 
     # Ordina per fatturato decrescente
-    top_performers = sorted(top_performers, key=lambda x: x['Fatturato (Ultimi 30gg)'], reverse=True)
+    top_performers = sorted(top_performers, key=lambda x: x['Fatturato Parent (Ultimi 30gg)'], reverse=True)
     
     df = pd.DataFrame(top_performers)
-    path = "/root/.openclaw/workspace-marketing/Drop_TopPerformers_LowIncidence.xlsx"
+    path = "/root/.openclaw/workspace-marketing/Drop_TopPerformers_LowIncidence_Halo.xlsx"
     df.to_excel(path, index=False)
     
-    print(f"File generato. {len(top_performers)} prodotti trovati.")
+    print(f"File generato con logica HALO EFFECT. {len(top_performers)} parent products trovati.")
 
 if __name__ == "__main__":
     main()
