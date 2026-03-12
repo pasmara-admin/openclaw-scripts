@@ -28,19 +28,17 @@ SELECT
     b.type_id,
     b.related_id,
     dt.name AS 'Tax Name',
-    SUM(br.total_price_tax_excl) AS 'Document Revenue Net',
-    SUM(br.total_tax) AS 'Document VAT',
-    br.tax_rate AS 'VAT Percentage',
-    SUM(br.total_price_tax_incl) AS 'Document Revenue Gross'
+    b.subtotal AS 'Document Revenue Net',
+    b.total_tax AS 'Document VAT',
+    b.tax_rate AS 'VAT Percentage',
+    b.total AS 'Document Revenue Gross'
 FROM bil_document b
 LEFT JOIN bil_document_reason bdr ON b.reason_id = bdr.id
-LEFT JOIN bil_document_row br ON b.id = br.document_id
-LEFT JOIN dat_tax dt ON br.tax_id = dt.id
+LEFT JOIN dat_tax dt ON b.tax_id = dt.id
 LEFT JOIN sal_order so ON b.order_id = so.id
 LEFT JOIN sal_order_type t ON so.type_id = t.id
 WHERE b.date >= '{start_date}' AND b.date <= '{end_date} 23:59:59' 
-AND b.is_deleted = 0 AND br.is_deleted = 0
-GROUP BY b.id, br.tax_rate, dt.name, bdr.name
+AND b.is_deleted = 0
 """
 import warnings
 with warnings.catch_warnings():
@@ -71,7 +69,7 @@ if orig_ids:
         DATE(date) AS 'Original Invoice Date',
         total AS 'Original Invoice Gross Amount',
         total_refunded AS 'Total Refunded on Invoice'
-    FROM bil_document WHERE id IN {orig_ids_str if len(orig_ids)==1 else str(orig_ids)}
+    FROM bil_document WHERE id IN {f"({orig_ids[0]})" if len(orig_ids)==1 else str(orig_ids)}
     """
     with warnings.catch_warnings():
         warnings.simplefilter('ignore', UserWarning)
@@ -97,6 +95,12 @@ cn_rename = {'Invoice Number': 'Credit Note Number', 'Invoice Date': 'Credit Not
 df_unico = df[db_unico_cols].copy()
 df_cn_final = df_cn[cn_cols].rename(columns=cn_rename)
 
+# Ensure types match the template
+df_unico['Invoice Date'] = pd.to_datetime(df_unico['Invoice Date'])
+df_unico['Original Invoice Date'] = pd.to_datetime(df_unico['Original Invoice Date'], errors='coerce')
+df_cn_final['Credit Note Date'] = pd.to_datetime(df_cn_final['Credit Note Date'])
+df_cn_final['Original Invoice Date'] = pd.to_datetime(df_cn_final['Original Invoice Date'], errors='coerce')
+
 file_name = f'Report_Revenue_{start_date.replace("-","")}_to_{end_date.replace("-","")}.xlsx'
 file_path = f'/tmp/{file_name}'
 
@@ -108,7 +112,8 @@ with pd.ExcelWriter(file_path, engine='openpyxl') as writer:
     for m_eng, m_ita in m_map.items(): df['Temp_Month'] = df['Temp_Month'].str.replace(m_eng, m_ita)
 
     for m in df['Temp_Month'].unique():
-        df_m = df[df['Temp_Month'] == m][monthly_cols]
+        df_m = df[df['Temp_Month'] == m][monthly_cols].copy()
+        df_m['Invoice Date'] = pd.to_datetime(df_m['Invoice Date'])
         df_m.to_excel(writer, sheet_name=m, index=False)
     
     df_cn_final.to_excel(writer, sheet_name='Note Credito', index=False)
