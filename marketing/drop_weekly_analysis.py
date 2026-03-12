@@ -42,7 +42,7 @@ def main():
     cursor.close()
     conn.close()
     
-    print("Connessione a PrestaShop per controllo stock...")
+    print("Connessione a PrestaShop per controllo stock e stato attivi...")
     conn_p = mysql.connector.connect(
         host="62.84.190.199",
         user="john",
@@ -52,20 +52,23 @@ def main():
     )
     cursor_p = conn_p.cursor(dictionary=True)
     
+    # Prendiamo solo i prodotti con active=1 in PrestaShop
     query_stock_main = """
         SELECT p.reference, s.quantity
         FROM ps_product p
         JOIN ps_stock_available s ON p.id_product = s.id_product AND s.id_product_attribute = 0
-        WHERE s.id_shop = 1
+        WHERE s.id_shop = 1 AND p.active = 1
     """
     cursor_p.execute(query_stock_main)
     stock_main = cursor_p.fetchall()
     
+    # Per gli attributi controlliamo che il parent ps_product sia active = 1
     query_stock_attr = """
         SELECT pa.reference, s.quantity
         FROM ps_product_attribute pa
         JOIN ps_stock_available s ON pa.id_product = s.id_product AND pa.id_product_attribute = s.id_product_attribute
-        WHERE s.id_shop = 1
+        JOIN ps_product p ON pa.id_product = p.id_product
+        WHERE s.id_shop = 1 AND p.active = 1
     """
     cursor_p.execute(query_stock_attr)
     stock_attr = cursor_p.fetchall()
@@ -84,17 +87,19 @@ def main():
         sku = p['sku'].lower()
         sku_upper = p['sku'].upper()
         
-        # Filtro: Disponibili (Stock >= 1 su PrestaShop)
-        stock_val = ps_stock.get(sku_upper, 0)
-        
-        if stock_val >= 1:
-            stats[sku] = {
-                'SKU': sku_upper,
-                'Fornitore': p['supplier'] or "Sconosciuto",
-                'Stock Attuale': stock_val,
-                'Vendita Media Giornaliera (30gg)': 0.0,
-                'Click (Ultimi 7gg)': 0
-            }
+        # Se non è presente in ps_stock, significa che non è active=1 in prestashop o reference vuota
+        if sku_upper in ps_stock:
+            stock_val = ps_stock[sku_upper]
+            
+            # Filtro: Disponibili (Stock >= 1 su PrestaShop)
+            if stock_val >= 1:
+                stats[sku] = {
+                    'SKU': sku_upper,
+                    'Fornitore': p['supplier'] or "Sconosciuto",
+                    'Stock Attuale': stock_val,
+                    'Vendita Media Giornaliera (30gg)': 0.0,
+                    'Click (Ultimi 7gg)': 0
+                }
         
     for s in sales_data:
         sku = s['sku'].lower()
