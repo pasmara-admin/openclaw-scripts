@@ -21,3 +21,4 @@ Lista minimale degli script per il dipartimento Marketing. Consultare prima di c
 | get_product_stats.py | Generazione di report statistici su prodotti e conversioni. |
 | get_top_campaigns.py | Estrazione delle migliori campagne in base all'incidenza/revenue. |
 | recalc_incidenza.py | Ricalcolo massivo dell'incidenza aggregando spesa e fatturato. |
+| realtime_incidence.py | Calcolo in tempo reale dell'incidenza globale e per country sul sito ProduceShop (Ads/Kanguro). |
