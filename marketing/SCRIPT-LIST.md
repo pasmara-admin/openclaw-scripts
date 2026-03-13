@@ -27,3 +27,4 @@ Lista minimale degli script per il dipartimento Marketing. Consultare prima di c
 | send_drop_report.py | Genera e invia via mail il report giornaliero sulle performance Drop (Kanguro + Ads). |
 | drop_weekly_analysis.py | Report settimanale in Excel su prodotti Drop ad alti click e basse vendite, o a zero click e zero vendite. |
 | drop_top_performers.py | Estrazione prodotti Drop altovendenti con Incidenza Ads < 10% (Ultimi 30gg). |
+| ordini-spediti-senza-tracking.py | Estrae e salva in Excel i numeri d'ordine degli ultimi 14gg (escluso oggi) risultati spediti ma senza numero di tracking. |
