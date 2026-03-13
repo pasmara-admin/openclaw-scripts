@@ -1,1 +1,2 @@
 - analisi-sku.py: Estrazione dati (stock, venduto, prezzo vendita e acquisto) per lista di SKU passati come input.
+- analisi-sku.py: Estrazione dati sku (stock Prestashop, vendite Kanguro, prezzo vendita, prezzo acquisto)
