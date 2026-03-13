@@ -1,14 +1,35 @@
 import argparse
 import subprocess
+import concurrent.futures
 import sys
 
+def send_message(target, message):
+    name = target['name']
+    chat = target['chat']
+    acc = target['acc']
+    
+    cmd = [
+        "openclaw", "message", "send",
+        "--message", message,
+        "--target", f"telegram:{chat}",
+        "--account", acc
+    ]
+    
+    try:
+        # Timeout breve per ogni singola chiamata
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        if result.returncode == 0:
+            return f"✅ {name}"
+        else:
+            return f"❌ {name}: {result.stderr.strip()}"
+    except Exception as e:
+        return f"🔥 {name}: {str(e)}"
+
 def main():
-    parser = argparse.ArgumentParser(description="Broadcast deterministico via OpenClaw CLI.")
+    parser = argparse.ArgumentParser(description="Broadcast parallelo e deterministico via OpenClaw CLI.")
     parser.add_argument("message", help="Il messaggio da inviare")
     args = parser.parse_args()
 
-    # Mappa deterministica Chat ID -> Account ID
-    # Estratta da JOHN-TELEGRAM-GROUPS.md
     broadcast_map = [
         {"name": "Main (Papà)", "chat": "496364314", "acc": "default"},
         {"name": "Finance", "chat": "-5243139273", "acc": "finance"},
@@ -21,29 +42,17 @@ def main():
         {"name": "Customer", "chat": "-5127288404", "acc": "customer"}
     ]
 
-    print(f"🚀 Avvio broadcast rapido: {args.message}")
+    print(f"🚀 Avvio broadcast PARALLELO: {args.message}")
 
-    for target in broadcast_map:
-        print(f"-> Invio a {target['name']} ({target['chat']})...", end=" ", flush=True)
+    # Utilizzo di ThreadPoolExecutor per invii simultanei
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(broadcast_map)) as executor:
+        # Lancio tutti i task in parallelo
+        future_to_target = {executor.submit(send_message, target, args.message): target for target in broadcast_map}
         
-        cmd = [
-            "openclaw", "message", "send",
-            "--message", args.message,
-            "--target", f"telegram:{target['chat']}",
-            "--account", target['acc']
-        ]
-        
-        try:
-            # Esecuzione silenziosa e veloce
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-            if result.returncode == 0:
-                print("✅")
-            else:
-                print(f"❌ Errore: {result.stderr.strip()}")
-        except Exception as e:
-            print(f"🔥 Eccezione: {str(e)}")
+        for future in concurrent.futures.as_completed(future_to_target):
+            print(future.result())
 
-    print("\nDone.")
+    print("\nBroadcast completato in parallelo.")
 
 if __name__ == "__main__":
     main()
