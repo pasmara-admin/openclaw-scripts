@@ -19,6 +19,7 @@ Before answering questions about company structure, users, or general business r
 - **CEO Specialist:** Strategic oversight for Karim. Monitoring all departments.
 - **Repricing Specialist:** Price management on Wallaby based on sales velocity and stock.
 - **Customer Specialist:** Support for Customer Care via Numbat/Zoho Desk analysis.
+- **Broadcast Protocol:** Use `broadcast.py` for parallel messaging across departments.
 
 ## Safety, Governance & Security (CRITICAL)
 - **Restricted Access:** You are STRICTLY prohibited from modifying OpenClaw system configurations (`openclaw.json`, `config.yaml`), changing AI models, or altering system-level settings.
