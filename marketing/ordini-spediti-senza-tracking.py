@@ -19,7 +19,7 @@ def main():
           AND l.tracking_id IS NULL 
           AND s.is_deleted = 0 
           AND s.date >= CURDATE() - INTERVAL 14 DAY
-          AND s.date < CURDATE()
+          AND s.date < CURDATE() - INTERVAL 1 DAY
         ORDER BY s.date DESC
     """
     cursor.execute(query)
