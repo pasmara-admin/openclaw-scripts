@@ -62,10 +62,7 @@ def sync_souls():
                 new_content = content + f"\n\n{current_common}"
             print(f" -> Sezione comune inserita.")
 
-        # Scrittura (commentata come da istruzioni, solo stampa per ora)
-        # with open(soul_path, 'w') as f:
-        #     f.write(new_content)
-        
+        # Scrittura effettiva
         with open(soul_path, 'w') as f:
             f.write(new_content)
         
