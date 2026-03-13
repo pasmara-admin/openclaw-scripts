@@ -10,13 +10,13 @@ python3 /root/.openclaw/workspace-shared/openclaw-scripts/finance/generate_chart
 # Aggiungi i saluti
 HOUR=$(date +"%H")
 if [ "$HOUR" -eq "23" ]; then
-    echo -e "\nBuonanotte a tutti dal vostro analista di fiducia. 🦞\n\nJohn Finance" >> /tmp/fatturato_msg.txt
+    echo -e "\nBuonanotte a tutti dal vostro analista di fiducia. 🦞\n\nJohn Marketing" >> /tmp/fatturato_msg.txt
 else
-    echo -e "\nBuon proseguimento di giornata dal vostro analista di fiducia. 🦞\n\nJohn Finance" >> /tmp/fatturato_msg.txt
+    echo -e "\nBuon proseguimento di giornata dal vostro analista di fiducia. 🦞\n\nJohn Marketing" >> /tmp/fatturato_msg.txt
 fi
 
 # Send via OpenClaw (Telegram)
-openclaw message send --channel telegram --target "-5243139273" --message "$(cat /tmp/fatturato_msg.txt)"
+openclaw message send --channel telegram --target "-5176361873" --message "$(cat /tmp/fatturato_msg.txt)"
 
 # Send via Email
 GOG_KEYRING_PASSWORD="produceshop" GOG_ACCOUNT="admin@produceshoptech.com" gog gmail send \
