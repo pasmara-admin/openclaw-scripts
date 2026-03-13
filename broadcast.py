@@ -1,5 +1,4 @@
 import argparse
-import json
 import subprocess
 import sys
 
@@ -8,58 +7,55 @@ def main():
     parser.add_argument("message", help="Il messaggio da inviare")
     args = parser.parse_args()
 
-    # Mappa degli agenti e dei loro gruppi
+    # Mappa degli agenti e dei loro gruppi (ID estratti da JOHN-TELEGRAM-GROUPS.md)
     agents = [
-        {"id": "john-finance", "label": "Finance Specialist"},
-        {"id": "john-marketing", "label": "Buyer Specialist"}, # In SOUL.md Buyer e Marketing sembrano sovrapposti in alcuni nomi, ma usiamo gli ID agent
-        {"id": "john-buyer", "label": "Buyer Specialist"},
-        {"id": "john-operations", "label": "Operations Specialist"},
-        {"id": "john-reporting", "label": "Reporting Specialist"},
-        {"id": "john-ceo", "label": "CEO Specialist"},
-        {"id": "john-repricing", "label": "Repricing Specialist"},
-        {"id": "john-customer", "label": "Customer Specialist"}
+        {"id": "john-finance", "chat": "-5243139273"},
+        {"id": "john-marketing", "chat": "-5176361873"},
+        {"id": "john-buyer", "chat": "-5131855317"},
+        {"id": "john-operations", "chat": "-5123393715"},
+        {"id": "john-reporting", "chat": "-5066791920"},
+        {"id": "john-ceo", "chat": "-5150029673"},
+        {"id": "john-repricing", "chat": "-5274787034"},
+        {"id": "john-customer", "chat": "-5127288404"},
+        {"id": "john-main", "chat": "496364314"}
     ]
 
     print(f"Inizio broadcast: {args.message}")
 
     for agent in agents:
         agent_id = agent["id"]
-        # Prepariamo il comando per spawnare una sessione rapida dell'agente
-        # Usiamo sessions_spawn tramite CLI se possibile o simuliamo il task.
-        # Poiché questo script viene eseguito da John (Main), usiamo la logica di mandare un messaggio
-        # o istruire l'agente a usare il suo tool message.
+        chat_id = agent["chat"]
         
-        task = f"Invia esattamente questo messaggio al tuo gruppo Telegram ufficiale usando il tool message: {args.message}. Non fare nient'altro e non rispondere qui."
+        print(f"Inviando a {agent_id} (Chat: {chat_id})...")
         
-        print(f"Istruendo {agent_id}...")
-        
-        # Eseguiamo tramite openclaw cli sessions spawn
+        # Usiamo la CLI di OpenClaw per inviare il messaggio. 
+        # Questo comando usa il bot predefinito configurato nell'account 'default' 
+        # o quello specificato se la CLI supporta l'account.
+        # Dato che John Main ha accesso a tutto, può inviare ai vari chat_id.
         cmd = [
-            "openclaw", "sessions", "spawn",
-            "--agent", agent_id,
-            "--task", task,
-            "--mode", "run"
+            "openclaw", "message", "send",
+            "--message", args.message,
+            "--target", f"telegram:{chat_id}"
         ]
         
         try:
             result = subprocess.run(cmd, capture_output=True, text=True)
             if result.returncode == 0:
-                print(f"Richiesta inviata a {agent_id} con successo.")
+                print(f"Messaggio inviato a {agent_id} con successo.")
             else:
-                print(f"Errore nell'invio a {agent_id}: {result.stderr}")
+                # Se fallisce, potrebbe essere perché il bot Main non è in quel gruppo.
+                # In tal caso, dovremmo usare l'account specifico dell'agente.
+                print(f"Tentativo con account specifico per {agent_id}...")
+                # L'ID account solitamente corrisponde al nome del settore (finance, marketing, ecc.)
+                acc_name = agent_id.replace("john-", "")
+                cmd_acc = cmd + ["--account", acc_name]
+                result_acc = subprocess.run(cmd_acc, capture_output=True, text=True)
+                if result_acc.returncode == 0:
+                    print(f"Inviato con account {acc_name}.")
+                else:
+                    print(f"Errore critico per {agent_id}: {result_acc.stderr}")
         except Exception as e:
-            print(f"Errore durante l'esecuzione per {agent_id}: {str(e)}")
-
-    # John Main manda anche a Damiano direttamente (opzionale, ma coerente con 'tutti i gruppi')
-    print("Inviando messaggio a Damiano (John Main)...")
-    # Qui il tool message di John Main verrebbe usato dall'agente che chiama lo script,
-    # ma lo script è un processo separato. Meglio se John Main lo fa dopo lo script o lo script lo fa via CLI.
-    cmd_main = [
-        "openclaw", "message", "send",
-        "--message", args.message,
-        "--target", "telegram:496364314"
-    ]
-    subprocess.run(cmd_main)
+            print(f"Errore per {agent_id}: {str(e)}")
 
     print("Broadcast completato.")
 
