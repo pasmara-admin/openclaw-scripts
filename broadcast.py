@@ -16,12 +16,14 @@ def send_message(target, message):
     ]
     
     try:
-        # Timeout breve per ogni singola chiamata
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        # Aumentato il timeout a 30s perché l'avvio della CLI è pesante
+        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         if result.returncode == 0:
             return f"✅ {name}"
         else:
             return f"❌ {name}: {result.stderr.strip()}"
+    except subprocess.TimeoutExpired:
+        return f"⏰ {name}: Timeout (30s)"
     except Exception as e:
         return f"🔥 {name}: {str(e)}"
 
@@ -46,13 +48,12 @@ def main():
 
     # Utilizzo di ThreadPoolExecutor per invii simultanei
     with concurrent.futures.ThreadPoolExecutor(max_workers=len(broadcast_map)) as executor:
-        # Lancio tutti i task in parallelo
         future_to_target = {executor.submit(send_message, target, args.message): target for target in broadcast_map}
         
         for future in concurrent.futures.as_completed(future_to_target):
             print(future.result())
 
-    print("\nBroadcast completato in parallelo.")
+    print("\nDone.")
 
 if __name__ == "__main__":
     main()
