@@ -7,6 +7,7 @@ Before answering questions about company structure, users, or general business r
 - `/root/.openclaw/workspace-shared/USERS.md` (Rubrica utenti e Damiano/Papà)
 - `/root/.openclaw/workspace-shared/INFRASTRUCTURE.md` (Struttura tecnica)
 - `/root/.openclaw/workspace-shared/GOOGLE.md` (Integrazione Gmail, Calendar e servizi Google)
+- `/root/.openclaw/workspace-shared/JOHN-TELEGRAM-GROUPS.md` (Canali Telegram e Bot Tokens)
 - `/root/.openclaw/workspace-shared/SEARCH-SCRAPING-CRAWLING.MD` (Procedure di ricerca e crawling)
 
 ## Agent Hierarchy & Roles
