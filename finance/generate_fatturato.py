@@ -85,6 +85,7 @@ SELECT
         WHEN delivery_country = 'Francia' THEN 'France' 
         WHEN delivery_country = 'Spagna' THEN 'España' 
         WHEN delivery_country = 'Germania' THEN 'Deutschland'
+        WHEN delivery_country = 'Österreich' THEN 'Austria'
         ELSE delivery_country 
     END AS nazione, 
     SUM(total) as lordo 
@@ -134,6 +135,36 @@ def sum_net_from_country_group(res_str):
             total_net += get_netto(float(r[1] if r[1] != 'NULL' else 0), r[0])
     return total_net
 
+def get_ads_cost():
+    try:
+        from google.ads.googleads.client import GoogleAdsClient
+        client = GoogleAdsClient.load_from_storage("/root/.openclaw/workspace/google-ads.yaml")
+        ga_service = client.get_service("GoogleAdsService")
+        customer_ids = ["2327095345", "8633848117", "9641081570", "6241768674", "4100556149"]
+        
+        query = """
+            SELECT
+                metrics.cost_micros
+            FROM campaign
+            WHERE segments.date DURING TODAY
+        """
+        
+        total_cost = 0.0
+        for cid in customer_ids:
+            try:
+                request = client.get_type("SearchGoogleAdsRequest")
+                request.customer_id = cid
+                request.query = query
+                response = ga_service.search(request=request)
+                
+                for row in response:
+                    total_cost += (row.metrics.cost_micros / 1000000.0)
+            except Exception:
+                pass
+        return total_cost
+    except Exception:
+        return 0.0
+
 # --- FETCH DATA ---
 res_main = run_query(query_main)
 res_drop = run_query(query_drop)
@@ -147,8 +178,11 @@ y_tot = sum_net_from_country_group(run_query(query_yesterday_tot))
 w_now = sum_net_from_country_group(run_query(query_lastweek_now))
 w_tot = sum_net_from_country_group(run_query(query_lastweek_tot))
 
+ads_cost = get_ads_cost()
+
 # --- PROCESS MAIN ---
 grand_total_net = 0.0
+sito_total_net = 0.0
 total_orders = 0
 macros = {"Sito (ProduceShop)": {"tot": 0.0, "ord": 0}, "Marketplaces": {"tot": 0.0, "ord": 0}, "Altri Canali Interni": {"tot": 0.0, "ord": 0}}
 
@@ -169,6 +203,8 @@ for line in res_main.split('\n'):
     if macro in macros:
         macros[macro]["tot"] += tot_netto
         macros[macro]["ord"] += ord_cnt
+        if macro == "Sito (ProduceShop)":
+            sito_total_net += tot_netto
     
     if macro == "Marketplaces":
         if name not in mp_dict:
@@ -231,11 +267,14 @@ for line in res_top_10.split('\n'):
 
 top_10 = sorted([(k, desc_dict[k], v) for k,v in top10_dict.items()], key=lambda x: x[2], reverse=True)[:10]
 
-# --- CALCULATE PROJECTION ---
+# --- CALCULATE PROJECTION & MARKETING ---
 mult_y = (y_tot / y_now) if y_now > 0 else 1
 mult_w = (w_tot / w_now) if w_now > 0 else 1
-avg_mult = (mult_y + mult_w) / 2
+avg_mult = (mult_y + w_mult) / 2 if 'w_mult' in locals() else (mult_y + mult_w) / 2
 proj_tot = grand_total_net * avg_mult
+
+incidenza = (ads_cost / sito_total_net * 100) if sito_total_net > 0 else 0
+mkt_ratio = (ads_cost / grand_total_net * 100) if grand_total_net > 0 else 0
 
 # --- BUILD MESSAGE ---
 today_str = datetime.datetime.now().strftime('%d/%m/%Y %H:%M')
@@ -245,6 +284,10 @@ msg += f"{alert_msg}\n\n"
 msg += f"💰 **Fatturato Attuale (Netto):** {format_eur(grand_total_net)} ({total_orders} ordini)\n"
 msg += f"🔮 **Proiezione Chiusura (Netto):** ~{format_eur(proj_tot)}\n\n"
 
+msg += f"🎯 **KPI Marketing:**\n"
+msg += f"   • Spesa Google Ads Oggi: {format_eur(ads_cost)}\n"
+msg += f"   • Incidenza (su Fatturato Sito): {incidenza:.2f}%\n"
+msg += f"   • Marketing Ratio (su Fatturato Globale): {mkt_ratio:.2f}%\n\n"
 
 drop_perc = (drop_tot_net / grand_total_net * 100) if grand_total_net > 0 else 0
 msg += f"📦 **Prodotti Drop (Netto):** {format_eur(drop_tot_net)} ({drop_perc:.1f}% del totale)\n"

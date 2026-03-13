@@ -2,7 +2,7 @@
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:$PATH"
 
 # Genera il testo
-python3 /root/.openclaw/workspace-shared/openclaw-scripts/finance/generate_fatturato.py > /tmp/fatturato_msg.txt
+uv run --with pymysql --with pandas --with google-ads python3 /root/.openclaw/workspace-shared/openclaw-scripts/finance/generate_fatturato.py > /tmp/fatturato_msg.txt
 
 # Genera i grafici in tmp
 python3 /root/.openclaw/workspace-shared/openclaw-scripts/finance/generate_chart.py
