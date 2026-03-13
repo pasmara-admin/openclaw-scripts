@@ -117,55 +117,6 @@ AND o.is_deleted = 0
 AND ot.is_internal = b'0' AND ot.id != 2;
 """
 
-# Santorini KPI tracking
-query_santorini = """
-SELECT 
-    CASE
-        WHEN r.reference LIKE '%20PZ%' THEN 'Stock 20'
-        WHEN r.reference LIKE '%4PZ%' THEN '4 Pezzi'
-        WHEN r.reference LIKE '%2PZ%' THEN '2 Pezzi'
-        WHEN r.reference LIKE 'SA800TEX%' THEN '1 Pezzo'
-        ELSE 'Altro'
-    END as gruppo,
-    SUM(CASE WHEN o.date BETWEEN '2026-03-03' AND '2026-03-09' THEN r.qty ELSE 0 END) as qty_before,
-    SUM(CASE WHEN o.date >= '2026-03-10' THEN r.qty ELSE 0 END) as qty_after,
-    SUM(CASE WHEN o.date = '2026-03-04' THEN r.qty ELSE 0 END) as qty_last_week_same_day,
-    SUM(CASE WHEN o.date = CURDATE() THEN r.qty ELSE 0 END) as qty_today
-FROM sal_order o
-JOIN sal_order_row r ON o.id = r.order_id
-WHERE r.reference LIKE 'SA800TEX%' AND r.reference NOT LIKE '%20PZ%'
-AND o.is_deleted = 0 AND r.is_deleted = 0
-GROUP BY gruppo;
-"""
-
-# Le proiezioni e la % vengono fatte calcolando il lordo su Kanguro per avere lo stesso "peso", per ora calcoleremo il NETTO
-query_yesterday_now = "SELECT delivery_country, SUM(total) FROM sal_order WHERE date = CURDATE() - INTERVAL 1 DAY AND is_deleted = 0 AND TIME(time) <= TIME(NOW()) GROUP BY delivery_country;"
-query_yesterday_tot = "SELECT delivery_country, SUM(total) FROM sal_order WHERE date = CURDATE() - INTERVAL 1 DAY AND is_deleted = 0 GROUP BY delivery_country;"
-query_lastweek_now = "SELECT delivery_country, SUM(total) FROM sal_order WHERE date = CURDATE() - INTERVAL 7 DAY AND is_deleted = 0 AND TIME(time) <= TIME(NOW()) GROUP BY delivery_country;"
-query_lastweek_tot = "SELECT delivery_country, SUM(total) FROM sal_order WHERE date = CURDATE() - INTERVAL 7 DAY AND is_deleted = 0 GROUP BY delivery_country;"
-
-def run_query(q):
-    cmd = ["mysql", "-h", "34.38.166.212", "-u", "john", "-p3rmiCyf6d~MZDO41", "kanguro", "-sN", "-e", q]
-    res = subprocess.run(cmd, capture_output=True, text=True)
-    return res.stdout.strip()
-
-def sum_net_from_country_group(res_str):
-    total_net = 0.0
-    for line in res_str.split('\n'):
-        if not line: continue
-        r = line.split('\t')
-        if len(r) == 2:
-            total_net += get_netto(float(r[1] if r[1] != 'NULL' else 0), r[0])
-    return total_net
-
-# --- FETCH DATA ---
-res_main = run_query(query_main)
-res_drop = run_query(query_drop)
-res_drop_supp = run_query(query_drop_suppliers)
-res_nazioni = run_query(query_nazioni)
-res_top_10 = run_query(query_top_10)
-res_mk_history = run_query(query_mk_history)
-res_santorini = run_query(query_santorini)
 
 y_now = sum_net_from_country_group(run_query(query_yesterday_now))
 y_tot = sum_net_from_country_group(run_query(query_yesterday_tot))
@@ -304,13 +255,6 @@ msg += f"{alert_msg}\n\n"
 msg += f"💰 **Fatturato Attuale (Netto):** {format_eur(grand_total_net)} ({total_orders} ordini)\n"
 msg += f"🔮 **Proiezione Chiusura (Netto):** ~{format_eur(proj_tot)}\n\n"
 
-if santorini_data:
-    msg += f"📈 **KPI Santorini (Medie YTD vs dal cambio prezzo):**\n"
-    msg += f"   *(Nota: media ultimi 7gg pre-cambio vs media post-cambio, e confronto oggi vs stesso giorno settimana scorsa)*\n"
-    for s in sorted(santorini_data, key=lambda x: x['name']):
-        diff_str = f"+{s['diff']:.1f}%" if s['diff'] > 0 else f"{s['diff']:.1f}%"
-        msg += f"   • {s['name']}: {s['avg_after']:.1f} pz/gg (vs {s['avg_before']:.1f} prec.) -> {diff_str} | [Oggi: {s['today']:.0f} pz vs {s['last_week']:.0f} pz mercoledì scorso]\n"
-    msg += "\n"
 
 drop_perc = (drop_tot_net / grand_total_net * 100) if grand_total_net > 0 else 0
 msg += f"📦 **Prodotti Drop (Netto):** {format_eur(drop_tot_net)} ({drop_perc:.1f}% del totale)\n"
