@@ -6,7 +6,6 @@ def format_eur(val):
     return f"{val:,.2f} €".replace(",", "X").replace(".", ",").replace("X", ".")
 
 # --- MAPPA IVA PER NAZIONE ---
-# Valori standard per il calcolo del netto (scorporo) 
 vat_rates = {
     'Italia': 1.22,
     'France': 1.20,
@@ -25,7 +24,6 @@ vat_rates = {
     'Netherlands': 1.21,
     'Danmark': 1.25,
     'Denmark': 1.25,
-    # Fallback medio per altri paesi UE (può essere perfezionato)
     'DEFAULT': 1.21 
 }
 
@@ -117,6 +115,32 @@ AND o.is_deleted = 0
 AND ot.is_internal = b'0' AND ot.id != 2;
 """
 
+query_yesterday_now = "SELECT delivery_country, SUM(total) FROM sal_order WHERE date = CURDATE() - INTERVAL 1 DAY AND is_deleted = 0 AND TIME(time) <= TIME(NOW()) GROUP BY delivery_country;"
+query_yesterday_tot = "SELECT delivery_country, SUM(total) FROM sal_order WHERE date = CURDATE() - INTERVAL 1 DAY AND is_deleted = 0 GROUP BY delivery_country;"
+query_lastweek_now = "SELECT delivery_country, SUM(total) FROM sal_order WHERE date = CURDATE() - INTERVAL 7 DAY AND is_deleted = 0 AND TIME(time) <= TIME(NOW()) GROUP BY delivery_country;"
+query_lastweek_tot = "SELECT delivery_country, SUM(total) FROM sal_order WHERE date = CURDATE() - INTERVAL 7 DAY AND is_deleted = 0 GROUP BY delivery_country;"
+
+def run_query(q):
+    cmd = ["mysql", "-h", "34.38.166.212", "-u", "john", "-p3rmiCyf6d~MZDO41", "kanguro", "-sN", "-e", q]
+    res = subprocess.run(cmd, capture_output=True, text=True)
+    return res.stdout.strip()
+
+def sum_net_from_country_group(res_str):
+    total_net = 0.0
+    for line in res_str.split('\n'):
+        if not line: continue
+        r = line.split('\t')
+        if len(r) == 2:
+            total_net += get_netto(float(r[1] if r[1] != 'NULL' else 0), r[0])
+    return total_net
+
+# --- FETCH DATA ---
+res_main = run_query(query_main)
+res_drop = run_query(query_drop)
+res_drop_supp = run_query(query_drop_suppliers)
+res_nazioni = run_query(query_nazioni)
+res_top_10 = run_query(query_top_10)
+res_mk_history = run_query(query_mk_history)
 
 y_now = sum_net_from_country_group(run_query(query_yesterday_now))
 y_tot = sum_net_from_country_group(run_query(query_yesterday_tot))
@@ -128,7 +152,7 @@ grand_total_net = 0.0
 total_orders = 0
 macros = {"Sito (ProduceShop)": {"tot": 0.0, "ord": 0}, "Marketplaces": {"tot": 0.0, "ord": 0}, "Altri Canali Interni": {"tot": 0.0, "ord": 0}}
 
-# Raggruppamento per MP (sommando i netti di ogni paese per quel MP)
+# Raggruppamento per MP
 mp_dict = {}
 active_mps_today = set()
 
@@ -206,40 +230,6 @@ for line in res_top_10.split('\n'):
         desc_dict[ref] = desc
 
 top_10 = sorted([(k, desc_dict[k], v) for k,v in top10_dict.items()], key=lambda x: x[2], reverse=True)[:10]
-
-# --- PROCESS SANTORINI ---
-santorini_data = []
-
-today = datetime.datetime.now().date()
-price_change_date = datetime.date(2026, 3, 10)
-days_after = (today - price_change_date).days + 1
-days_before = 7
-
-for line in res_santorini.split('\n'):
-    if not line: continue
-    r = line.split('\t')
-    if len(r) >= 5 and r[0] != 'Altro':
-        gruppo = r[0]
-        qty_before = float(r[1] if r[1] != 'NULL' else 0)
-        qty_after = float(r[2] if r[2] != 'NULL' else 0)
-        qty_last_week = float(r[3] if r[3] != 'NULL' else 0)
-        qty_today = float(r[4] if r[4] != 'NULL' else 0)
-        
-        avg_before = qty_before / days_before
-        avg_after = qty_after / days_after
-        
-        diff = 0
-        if avg_before > 0:
-            diff = ((avg_after - avg_before) / avg_before) * 100
-            
-        santorini_data.append({
-            'name': gruppo,
-            'avg_before': avg_before,
-            'avg_after': avg_after,
-            'diff': diff,
-            'last_week': qty_last_week,
-            'today': qty_today
-        })
 
 # --- CALCULATE PROJECTION ---
 mult_y = (y_tot / y_now) if y_now > 0 else 1
