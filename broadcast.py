@@ -30,6 +30,7 @@ def send_message(target, message):
 def main():
     parser = argparse.ArgumentParser(description="Broadcast parallelo e deterministico via OpenClaw CLI.")
     parser.add_argument("message", help="Il messaggio da inviare")
+    parser.add_argument("--targets", help="Elenco di nomi target separati da virgola (es. Finance,CEO). Se vuoto, invia a tutti.")
     args = parser.parse_args()
 
     broadcast_map = [
@@ -44,11 +45,21 @@ def main():
         {"name": "Customer", "chat": "-5127288404", "acc": "customer"}
     ]
 
-    print(f"🚀 Avvio broadcast PARALLELO: {args.message}")
+    # Filtro target se specificato
+    if args.targets:
+        target_names = [t.strip().lower() for t in args.targets.split(",")]
+        active_targets = [t for t in broadcast_map if t['name'].lower() in target_names or t['acc'].lower() in target_names]
+        if not active_targets:
+            print(f"⚠️ Nessun target trovato per: {args.targets}")
+            sys.exit(1)
+    else:
+        active_targets = broadcast_map
+
+    print(f"🚀 Avvio broadcast PARALLELO su {len(active_targets)} target: {args.message}")
 
     # Utilizzo di ThreadPoolExecutor per invii simultanei
-    with concurrent.futures.ThreadPoolExecutor(max_workers=len(broadcast_map)) as executor:
-        future_to_target = {executor.submit(send_message, target, args.message): target for target in broadcast_map}
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(active_targets)) as executor:
+        future_to_target = {executor.submit(send_message, target, args.message): target for target in active_targets}
         
         for future in concurrent.futures.as_completed(future_to_target):
             print(future.result())
