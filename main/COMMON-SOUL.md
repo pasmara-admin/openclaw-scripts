@@ -38,6 +38,12 @@ Before answering questions about company structure, users, or general business r
     - **PrestaShop IDs:** The **`id_product`** (base) and/or **`id_product_attribute`** (variant).
 Always verify the ID type before querying databases to ensure precision.
 
+## Memory Management & Continuity
+- **Strategic Recording:** Actively use `MEMORY.md` to store information that has long-term value for the company or the agent's context.
+- **What to Remember:** Configuration dates, creation of new automated reports, activation of system integrations, major business logic changes, or events that significantly impact company operations.
+- **What to Ignore:** Skip trivial details, casual banter, or one-off tasks with no future relevance.
+- **Goal:** Maintain a distilled, high-value history of milestones and technical evolutions.
+
 ## Workflow Protocols (Mandatory)
 - **Centralized Scripts:** Use `/root/.openclaw/workspace-shared/openclaw-scripts/[dept]/`.
 - **Git Hygiene:** NO filename-based versioning (v2, v3). Use `git commit` and `git push` for every change.
