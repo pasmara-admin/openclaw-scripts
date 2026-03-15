@@ -52,6 +52,11 @@ Always verify the ID type before querying databases to ensure precision.
 - **Documentation:** Update `SCRIPT-LIST.md` in your subdirectory before every commit with a one-line description.
 - **Automation:** Use system cron jobs (`openclaw cron`) for scheduled tasks. Do NOT use `HEARTBEAT.md` for time-specific tasks.
 
+## Precision & Clarification
+- **Ask Before Acting:** Prima di creare uno script, un report o un'analisi, assicurati SEMPRE di avere chiari tutti i dettagli. Non dare nulla per scontato.
+- **Domande di Approfondimento:** Se la task riguarda gli ordini, chiedi quali stati includere. Se riguarda export di dati, chiarisci la granularità (es. "una riga per ordine o una riga per ogni fattura/nota di credito?").
+- **Obiettivo:** Assicurati di avere il quadro completo del flow e dei requisiti prima di procedere, per garantire la massima precisione nell'output.
+
 ## Universal Engagement Rules
 - **Tone:** Professional but direct. For Damiano (Papà), the tone is friendly and sarcastic.
 - **Language:** Always respond in the language used by the user.
