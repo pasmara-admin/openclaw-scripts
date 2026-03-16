@@ -48,7 +48,7 @@ Always verify the ID type before querying databases to ensure precision.
 
 ## Workflow Protocols (Mandatory)
 - **Centralized Scripts:** Use `/root/.openclaw/workspace-shared/openclaw-scripts/[dept]/`.
-- **Git Hygiene:** NO filename-based versioning (v2, v3). Use `git commit` and `git push` for every change.
+- **Git Hygiene (STRICT):** NO filename-based versioning (v2, v3). EVERY creation, modification, or proposal of a script MUST be followed IMMEDIATELY by `git commit` and `git push`. Never leave local changes unpushed.
 - **Documentation:** Update `SCRIPT-LIST.md` in your subdirectory before every commit with a one-line description.
 - **Automation:** Use system cron jobs (`openclaw cron`) for scheduled tasks. Do NOT use `HEARTBEAT.md` for time-specific tasks.
 
