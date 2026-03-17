@@ -30,7 +30,7 @@ def process_file(input_path, output_path, email_recipient=None):
     # Prepare placeholders for IN clause
     format_strings = ','.join(['%s'] * len(order_ids))
     
-    # Query updated with order date and shipping status
+    # Query updated with shipment_post logic
     query = f"""
     SELECT 
         o.external_reference as order_id,
@@ -41,21 +41,18 @@ def process_file(input_path, output_path, email_recipient=None):
         t.number as tracking_number,
         w.name as warehouse_name,
         GROUP_CONCAT(DISTINCT s.product_reference SEPARATOR '; ') as products,
-        ss.name as shipping_status,
         (
-            SELECT GROUP_CONCAT(DISTINCT rs.name SEPARATOR '; ')
-            FROM ret_shipping rsh
-            JOIN ret_return rr ON rsh.id = rr.shipping_id
-            JOIN ret_return_state_lang rs ON rr.return_state_id = rs.return_state_id AND rs.lang_id = 1
-            WHERE rsh.order_id = o.id AND rr.is_deleted = 0
-        ) as post_sales_return_status
+            SELECT GROUP_CONCAT(DISTINCT psl.name SEPARATOR '; ')
+            FROM lgs_shipment_post p
+            JOIN lgs_shipment_post_state_lang psl ON p.state_id = psl.state_id AND psl.lang_id = 1
+            WHERE p.shipment_number = s.number AND p.is_deleted = 0
+        ) as post_sales_status
     FROM sal_order o
     LEFT JOIN lgs_shipment s ON o.id = s.order_id
     LEFT JOIN lgs_tracking t ON s.tracking_id = t.id
     LEFT JOIN inv_warehouse w ON s.warehouse_id = w.id
-    LEFT JOIN sal_order_shipping_state_lang ss ON o.shipping_state_id = ss.shipping_state_id AND ss.lang_id = 1
     WHERE o.external_reference IN ({format_strings})
-    GROUP BY o.id, o.external_reference, o.date, o.total, o.total_refunded, s.number, t.number, w.name, ss.name
+    GROUP BY o.id, o.external_reference, o.date, o.total, o.total_refunded, s.number, t.number, w.name
     """
     
     cursor = conn.cursor(dictionary=True)
@@ -94,16 +91,6 @@ def process_file(input_path, output_path, email_recipient=None):
     df_output['Tipo Nota Credito'] = df_output.apply(calc_refund_type, axis=1)
     df_output['% Rimborso'] = df_output.apply(calc_refund_percentage, axis=1)
     
-    # Combined Post-Sales Status: returns + shipping state
-    def combine_status(row):
-        ret_status = row['post_sales_return_status'] if pd.notnull(row['post_sales_return_status']) else ""
-        ship_status = row['shipping_status'] if pd.notnull(row['shipping_status']) else ""
-        if ret_status:
-            return f"{ship_status} / Reso: {ret_status}"
-        return ship_status
-
-    df_output['Stato Post-Sales'] = df_output.apply(combine_status, axis=1)
-    
     # Rename columns to user requested names
     column_mapping = {
         'order_date': 'Data Ordine',
@@ -111,15 +98,14 @@ def process_file(input_path, output_path, email_recipient=None):
         'tracking_number': 'Numero Tracking',
         'warehouse_name': 'Magazzino',
         'products': 'Prodotti',
-        'order_total': 'Importo Ordine'
+        'order_total': 'Importo Ordine',
+        'post_sales_status': 'Stato Post-Sales'
     }
     df_output = df_output.rename(columns=column_mapping)
     
     # Drop internal helper columns
-    cols_to_drop = ['total_refunded', 'post_sales_return_status', 'shipping_status']
-    for col in cols_to_drop:
-        if col in df_output.columns:
-            df_output = df_output.drop(columns=[col])
+    if 'total_refunded' in df_output.columns:
+        df_output = df_output.drop(columns=['total_refunded'])
     
     # Save to Excel
     df_output.to_excel(output_path, index=False)
@@ -129,8 +115,8 @@ def process_file(input_path, output_path, email_recipient=None):
         send_email(output_path, email_recipient)
 
 def send_email(file_path, recipient):
-    subject = "Dettagli ordini Leroy Merlin per PoA - Report Aggiornato v3"
-    body = "Ciao Ivan,\n\nIn allegato trovi il report 'Dettagli ordini Leroy Merlin per PoA' aggiornato con:\n1. Data dell'ordine\n2. Stato Post-Sales completo (Stato spedizione + dettaglio Reso/RMA)\n3. Tutte le altre colonne finanziarie richieste.\n\nUn saluto,\nJohn Operations"
+    subject = "Dettagli ordini Leroy Merlin per PoA - Report Aggiornato v4"
+    body = "Ciao Ivan,\n\nIn allegato trovi il report 'Dettagli ordini Leroy Merlin per PoA' aggiornato con la logica corretta per lo Stato Post-Sales:\n1. Lo stato è ora recuperato dalla tabella 'lgs_shipment_post' (collegata alla spedizione).\n2. Aggiunta la colonna 'Data Ordine'.\n3. Mantenute le colonne finanziarie e di logistica.\n\nUn saluto,\nJohn Operations"
     
     env = os.environ.copy()
     env["GOG_KEYRING_PASSWORD"] = "produceshop"
