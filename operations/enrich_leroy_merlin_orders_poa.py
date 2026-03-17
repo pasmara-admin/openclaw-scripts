@@ -30,29 +30,32 @@ def process_file(input_path, output_path, email_recipient=None):
     # Prepare placeholders for IN clause
     format_strings = ','.join(['%s'] * len(order_ids))
     
-    # Query to fetch shipment, tracking, warehouse, products, and financials
+    # Query updated with order date and shipping status
     query = f"""
     SELECT 
         o.external_reference as order_id,
+        o.date as order_date,
         o.total as order_total,
         o.total_refunded as total_refunded,
         s.number as shipment_number,
         t.number as tracking_number,
         w.name as warehouse_name,
         GROUP_CONCAT(DISTINCT s.product_reference SEPARATOR '; ') as products,
+        ss.name as shipping_status,
         (
             SELECT GROUP_CONCAT(DISTINCT rs.name SEPARATOR '; ')
             FROM ret_shipping rsh
             JOIN ret_return rr ON rsh.id = rr.shipping_id
             JOIN ret_return_state_lang rs ON rr.return_state_id = rs.return_state_id AND rs.lang_id = 1
             WHERE rsh.order_id = o.id AND rr.is_deleted = 0
-        ) as post_sales_status
+        ) as post_sales_return_status
     FROM sal_order o
     LEFT JOIN lgs_shipment s ON o.id = s.order_id
     LEFT JOIN lgs_tracking t ON s.tracking_id = t.id
     LEFT JOIN inv_warehouse w ON s.warehouse_id = w.id
+    LEFT JOIN sal_order_shipping_state_lang ss ON o.shipping_state_id = ss.shipping_state_id AND ss.lang_id = 1
     WHERE o.external_reference IN ({format_strings})
-    GROUP BY o.id, o.external_reference, o.total, o.total_refunded, s.number, t.number, w.name
+    GROUP BY o.id, o.external_reference, o.date, o.total, o.total_refunded, s.number, t.number, w.name, ss.name
     """
     
     cursor = conn.cursor(dictionary=True)
@@ -91,20 +94,32 @@ def process_file(input_path, output_path, email_recipient=None):
     df_output['Tipo Nota Credito'] = df_output.apply(calc_refund_type, axis=1)
     df_output['% Rimborso'] = df_output.apply(calc_refund_percentage, axis=1)
     
+    # Combined Post-Sales Status: returns + shipping state
+    def combine_status(row):
+        ret_status = row['post_sales_return_status'] if pd.notnull(row['post_sales_return_status']) else ""
+        ship_status = row['shipping_status'] if pd.notnull(row['shipping_status']) else ""
+        if ret_status:
+            return f"{ship_status} / Reso: {ret_status}"
+        return ship_status
+
+    df_output['Stato Post-Sales'] = df_output.apply(combine_status, axis=1)
+    
     # Rename columns to user requested names
     column_mapping = {
+        'order_date': 'Data Ordine',
         'shipment_number': 'Numero Spedizione',
         'tracking_number': 'Numero Tracking',
         'warehouse_name': 'Magazzino',
         'products': 'Prodotti',
-        'order_total': 'Importo Ordine',
-        'post_sales_status': 'Stato Post-Sales'
+        'order_total': 'Importo Ordine'
     }
     df_output = df_output.rename(columns=column_mapping)
     
-    # Drop internal helper column
-    if 'total_refunded' in df_output.columns:
-        df_output = df_output.drop(columns=['total_refunded'])
+    # Drop internal helper columns
+    cols_to_drop = ['total_refunded', 'post_sales_return_status', 'shipping_status']
+    for col in cols_to_drop:
+        if col in df_output.columns:
+            df_output = df_output.drop(columns=[col])
     
     # Save to Excel
     df_output.to_excel(output_path, index=False)
@@ -114,8 +129,8 @@ def process_file(input_path, output_path, email_recipient=None):
         send_email(output_path, email_recipient)
 
 def send_email(file_path, recipient):
-    subject = "Dettagli ordini Leroy Merlin per PoA - Report Aggiornato"
-    body = "Ciao Ivan,\n\nIn allegato trovi il report 'Dettagli ordini Leroy Merlin per PoA' aggiornato con le nuove colonne richieste:\n1. Importo dell'ordine\n2. Tipo Nota Credito (TOTALE/PARZIALE)\n3. Percentuale rimborso\n4. Stato Post-Sales\n\nUn saluto,\nJohn Operations"
+    subject = "Dettagli ordini Leroy Merlin per PoA - Report Aggiornato v3"
+    body = "Ciao Ivan,\n\nIn allegato trovi il report 'Dettagli ordini Leroy Merlin per PoA' aggiornato con:\n1. Data dell'ordine\n2. Stato Post-Sales completo (Stato spedizione + dettaglio Reso/RMA)\n3. Tutte le altre colonne finanziarie richieste.\n\nUn saluto,\nJohn Operations"
     
     env = os.environ.copy()
     env["GOG_KEYRING_PASSWORD"] = "produceshop"
