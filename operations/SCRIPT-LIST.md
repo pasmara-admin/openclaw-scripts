@@ -5,3 +5,4 @@
 - `riconciliazione_post_sales.py`: Identifica ordini con note credito senza riemissione che mancano di stati post-sales adeguati (vuoti o solo "Concluso").
 
 
+- `analyze_tracking_delays.py`: Report spedizioni senza tracking (48h + business days + PrestaShop inheritance).
