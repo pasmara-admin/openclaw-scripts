@@ -22,9 +22,11 @@ Lista minimale degli script per il dipartimento Marketing. Consultare prima di c
 | get_top_campaigns.py | Estrazione delle migliori campagne in base all'incidenza/revenue. |
 | recalc_incidenza.py | Ricalcolo massivo dell'incidenza aggregando spesa e fatturato. |
 | realtime_incidence.py | Calcolo in tempo reale dell'incidenza globale e per country sul sito ProduceShop (Ads/Kanguro). |
+| get_presales_data.py | Estrazione dati GA4 (Revenue, Sessioni) per il segmento PRESALES TRAFFIC (Ieri/Realtime). |
 | forecast_oos_pricing.py | Estrazione prodotti con vendite >0 e Out Of Stock stimato in <14gg (Kanguro sales + PrestaShop stock) per revisione prezzi. |
 | drop_performance.py | Estrazione delle performance di vendita e di traffico (Google Ads + Kanguro) per i prodotti etichettati in Dropshipping. |
 | send_drop_report.py | Genera e invia via mail il report giornaliero sulle performance Drop (Kanguro + Ads). |
 | drop_weekly_analysis.py | Report settimanale in Excel su prodotti Drop ad alti click e basse vendite, o a zero click e zero vendite. |
 | drop_top_performers.py | Estrazione prodotti Drop altovendenti con Incidenza Ads < 10% (Ultimi 30gg). |
 | ordini-spediti-senza-tracking.py | Estrae e salva in Excel i numeri d'ordine degli ultimi 14gg (escluso oggi) risultati spediti ma senza numero di tracking. |
+| check_wallaby_prices.py | Controlla i prezzi finali (IVA incl.) su Wallaby per una lista di SKU (main o varianti) ordinati per prezzo. |
