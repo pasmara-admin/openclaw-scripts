@@ -94,14 +94,13 @@ def format_report(db_data, marketing_data=None):
     return report
 
 if __name__ == "__main__":
-    # In una configurazione reale, questi dati verrebbero estratti via API o passati come input.
-    # I dati delle medie pesate 7gg/30gg qui inseriti sono simulati in attesa del dato consolidato da John Marketing.
+    # Dati consolidati forniti da John Marketing il 18/03/2026
     marketing_data = {
-        'Italia':   {'sessions': 13680, 'orders': 48, 'cr_y': '1,87%', 'cr_7': '1,82%', 'cr_30': '1,79%'},
-        'Francia':  {'sessions': 5203,  'orders': 12, 'cr_y': '1,56%', 'cr_7': '1,48%', 'cr_30': '1,45%'},
-        'Germania': {'sessions': 8973,  'orders': 11, 'cr_y': '0,37%', 'cr_7': '0,42%', 'cr_30': '0,45%'},
-        'Spagna':   {'sessions': 2243,  'orders': 7,  'cr_y': '2,50%', 'cr_7': '2,35%', 'cr_30': '2,21%'},
-        'Austria':  {'sessions': 561,   'orders': 9,  'cr_y': '3,03%', 'cr_7': '2,85%', 'cr_30': '2,72%'}
+        'Italia':   {'sessions': 13680, 'orders': 48, 'cr_y': '1,87%', 'cr_7': '2,47%', 'cr_30': '2,28%'},
+        'Austria':  {'sessions': 561,   'orders': 9,  'cr_y': '3,03%', 'cr_7': '2,55%', 'cr_30': '2,73%'},
+        'Francia':  {'sessions': 5203,  'orders': 12, 'cr_y': '1,56%', 'cr_7': '1,77%', 'cr_30': '2,39%'},
+        'Spagna':   {'sessions': 2243,  'orders': 7,  'cr_y': '2,50%', 'cr_7': '2,00%', 'cr_30': '1,28%'},
+        'Germania': {'sessions': 8973,  'orders': 11, 'cr_y': '0,37%', 'cr_7': '0,59%', 'cr_30': '0,74%'}
     }
     
     db_data = get_db_data()
