@@ -11,3 +11,4 @@ Lista minimale degli script approvati per il dipartimento Finance.
 | `schedule_report_revenue.py` | Schedulatore e logica delle regole di invio email per il Report Revenue. |
 | `send_report_revenue.py` | Modulo per l'invio via email (gog) dei report finanziari e log su Telegram. |
 | `generate_chart.py` | Generazione grafici andamento vendite (da mantenere parametrizzato). |
+| `send_unbilled_orders.py` | Genera e invia report degli ordini non fatturati con logica ritardi e CC bi-settimanale Mario (CFO). |

@@ -2,7 +2,6 @@ import pandas as pd
 import pymysql
 import subprocess
 import os
-import calendar
 from datetime import datetime, timedelta
 import warnings
 warnings.filterwarnings('ignore')
@@ -58,63 +57,78 @@ df_annullati = df[mask]
 df_attivi = df[~mask].copy()
 
 # Date calculations
-ref_date = datetime.now() - timedelta(days=1)
+now = datetime.now()
+ref_date = now - timedelta(days=1)
 ref_date_str = ref_date.strftime('%d/%m/%Y')
 
 df_attivi['Data Ordine'] = pd.to_datetime(df_attivi['Data Ordine'])
-ref_dt = pd.to_datetime(ref_date.date())
-delays = (ref_dt - df_attivi['Data Ordine']).dt.days
-delayed_count = int((delays >= 3).sum())
+ref_dt = pd.to_datetime(now.date()) # Use today's date for comparison
+df_attivi['Ritardo_Gg'] = (ref_dt - df_attivi['Data Ordine']).dt.days
 
-# Previous months calculations
-month_names = ['', 'Gennaio', 'Febbraio', 'Marzo', 'Aprile', 'Maggio', 'Giugno', 'Luglio', 'Agosto', 'Settembre', 'Ottobre', 'Novembre', 'Dicembre']
-mask_prev = (df_attivi['Data Ordine'].dt.year < ref_dt.year) | ((df_attivi['Data Ordine'].dt.year == ref_dt.year) & (df_attivi['Data Ordine'].dt.month < ref_dt.month))
-df_prev = df_attivi[mask_prev]
+# Delayed orders (>= 3 days)
+df_delayed = df_attivi[df_attivi['Ritardo_Gg'] >= 3].sort_values('Data Ordine')
+delayed_count = len(df_delayed)
 
-# Restore string format for excel
-df_attivi['Data Ordine'] = df_attivi['Data Ordine'].dt.strftime('%Y-%m-%d')
+# Format for Excel
+df_attivi_out = df_attivi.drop(columns=['Ritardo_Gg'])
+df_attivi_out['Data Ordine'] = df_attivi_out['Data Ordine'].dt.strftime('%Y-%m-%d')
 
 out_file = '/root/.openclaw/workspace-finance/Report_Ordini_Non_Fatturati_Daily.xlsx'
 with pd.ExcelWriter(out_file, engine='openpyxl') as writer:
-    df_attivi.to_excel(writer, sheet_name='Ordini Attivi', index=False)
+    df_attivi_out.to_excel(writer, sheet_name='Ordini Attivi', index=False)
     df_annullati.to_excel(writer, sheet_name='Ordini Annullati', index=False)
 
-# Email prep
-subject = f"Ordini attivi non fatturati up to {ref_date_str}"
-body = "In allegato quanto in oggetto."
-cc_arg = []
+# Bi-weekly CC logic for Mario
+# Check if current week number is even/odd? Or use a state file.
+# Better to use week number: now.isocalendar()[1] % 2 == 0
+is_mario_week = (now.isocalendar()[1] % 2 == 0)
 
-if delayed_count > 0:
-    body += f"\n\nCi sono {delayed_count} ordini con più di 3 gg di ritardo dalla data dell'ordine."
-    cc_arg = ["--cc", "ivan.cianci@produceshop.com"]
+# Email body construction
+subject = f"Report Ordini Non Fatturati - {now.strftime('%d/%m/%Y')}"
+body = f"Ciao,\n\nin allegato il report aggiornato degli ordini non ancora fatturati (Stato: 'Da Fatturare').\n\n"
+body += f"📊 RIEPILOGO TOTALE:\n• Ordini Attivi da Fatturare: {len(df_attivi)}\n"
+body += f"• Ordini Annullati: {len(df_annullati)}\n\n"
 
-if not df_prev.empty:
-    body += f"\n\n📋 Riepilogo ordini non fatturati di mesi precedenti ({len(df_prev)} ordini totali):"
-    summary = df_prev.groupby([df_prev['Data Ordine'].str[:4], df_prev['Data Ordine'].str[5:7]]).size()
-    for (year, month), count in summary.items():
-        month_name = month_names[int(month)]
-        body += f"\n- {month_name} {year}: {count} ordini"
+if not df_delayed.empty:
+    body += f"⚠️ ATTENZIONE: ORDINI IN SOSPESO (>= 3 GIORNI):\n"
+    for _, row in df_delayed.iterrows():
+        order_date = row['Data Ordine'].strftime('%d/%m/%Y')
+        body += f"• {row['Numero Ordine']} ({order_date}) - {row['Cliente']}: €{row['Totale Ordine']:.2f}\n"
+else:
+    body += "✅ Non ci sono ordini in sospeso da più di 3 giorni.\n"
 
-body += "\n\nJohn Finance 📊"
+body += "\nJohn Finance 📊"
 
+# Send Email
 env = os.environ.copy()
 env["GOG_KEYRING_PASSWORD"] = "produceshop"
 env["GOG_ACCOUNT"] = "admin@produceshoptech.com"
 
+recipients = "baldassare.gulotta@produceshop.com,valentina.loreti@produceshop.com"
+ccs = ["ivan.cianci@produceshop.com"] # Default CC Ivan
+
+if is_mario_week:
+    ccs.append("mario.spina@produceshop.com")
+
 cmd = [
     "gog", "gmail", "send",
-    "--to", "baldassare.gulotta@produceshop.com,valentina.loreti@produceshop.com",
+    "--to", recipients,
+    "--cc", ",".join(ccs),
     "--subject", subject,
     "--body", body,
     "--attach", out_file,
     "--no-input"
-] + cc_arg
+]
 
 subprocess.run(cmd, env=env)
 
 # Telegram notification
+telegram_msg = f"✅ Report 'Ordini non fatturati' inviato!\n- Totale attivi: {len(df_attivi)}\n- Ritardi >= 3gg: {len(df_delayed)}"
+if is_mario_week:
+    telegram_msg += "\n- Mario (CFO) in CC questa settimana."
+
 subprocess.run([
     "openclaw", "message", "send",
     "--target", "telegram:-5243139273",
-    "--message", f"✅ Email 'Ordini non fatturati' inviata! Ritardi >= 3gg: {delayed_count}. Ordini mesi passati: {len(df_prev)}"
+    "--message", telegram_msg
 ])
