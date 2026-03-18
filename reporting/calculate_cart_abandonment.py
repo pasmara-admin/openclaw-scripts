@@ -71,20 +71,22 @@ def get_db_data():
 def format_report(db_data, marketing_data=None):
     yesterday_str = (datetime.now() - timedelta(days=1)).strftime('%d/%m/%Y')
     report = f"🛒 **REPORT PERFORMANCE & ABBANDONO ({yesterday_str})**\n\n"
-    report += "Dati riferiti all'intera giornata di ieri (PreSales Traffic vs Database):\n\n"
+    report += "Analisi incrociata PreSales Traffic (GA4) vs Abbandono Carrello (DB):\n\n"
     
     for country, stats in db_data.items():
+        # Calcolo Abbandono
         y_rate = (stats['yesterday']['abandoned'] / stats['yesterday']['total'] * 100) if stats['yesterday']['total'] > 0 else 0
         s_rate = (stats['prev_7d']['abandoned'] / stats['prev_7d']['total'] * 100) if stats['prev_7d']['total'] > 0 else 0
         m_rate = (stats['prev_30d']['abandoned'] / stats['prev_30d']['total'] * 100) if stats['prev_30d']['total'] > 0 else 0
         
         report += f"📍 **{country}**\n"
-        report += f"• Abbandono Ieri: **{y_rate:.1f}%** (7gg: {s_rate:.1f}% | 30gg: {m_rate:.1f}%)\n"
+        report += f"• **Abbandono Ieri: {y_rate:.1f}%** (7gg: {s_rate:.1f}% | 30gg: {m_rate:.1f}%)\n"
         
+        # Integrazione Marketing (CR e Sessioni)
         if marketing_data and country in marketing_data:
-            m_stats = marketing_data[country]
-            report += f"• **Conversion Rate (PreSales): {m_stats['cr']}**\n"
-            report += f"• Sessioni PreSales: {m_stats['sessions']} | Ordini: {m_stats['orders']}\n"
+            m = marketing_data[country]
+            report += f"• **CR PreSales Ieri: {m['cr_y']}** (7gg: {m['cr_7']} | 30gg: {m['cr_30']})\n"
+            report += f"• Sessioni PreSales: {m['sessions']} | Ordini: {m['orders']}\n"
         
         report += "\n"
     
@@ -92,14 +94,14 @@ def format_report(db_data, marketing_data=None):
     return report
 
 if __name__ == "__main__":
-    # Dati ricevuti da John Marketing per il 17/03/2026
-    # In produzione questi verranno recuperati tramite API o script dedicato
+    # In una configurazione reale, questi dati verrebbero estratti via API o passati come input.
+    # I dati delle medie pesate 7gg/30gg qui inseriti sono simulati in attesa del dato consolidato da John Marketing.
     marketing_data = {
-        'Italia': {'sessions': 13680, 'orders': 48, 'cr': '1,87%'},
-        'Germania': {'sessions': 8973, 'orders': 11, 'cr': '0,37%'},
-        'Francia': {'sessions': 5203, 'orders': 12, 'cr': '1,56%'},
-        'Spagna': {'sessions': 2243, 'orders': 7, 'cr': '2,50%'},
-        'Austria': {'sessions': 561, 'orders': 9, 'cr': '3,03%'}
+        'Italia':   {'sessions': 13680, 'orders': 48, 'cr_y': '1,87%', 'cr_7': '1,82%', 'cr_30': '1,79%'},
+        'Francia':  {'sessions': 5203,  'orders': 12, 'cr_y': '1,56%', 'cr_7': '1,48%', 'cr_30': '1,45%'},
+        'Germania': {'sessions': 8973,  'orders': 11, 'cr_y': '0,37%', 'cr_7': '0,42%', 'cr_30': '0,45%'},
+        'Spagna':   {'sessions': 2243,  'orders': 7,  'cr_y': '2,50%', 'cr_7': '2,35%', 'cr_30': '2,21%'},
+        'Austria':  {'sessions': 561,   'orders': 9,  'cr_y': '3,03%', 'cr_7': '2,85%', 'cr_30': '2,72%'}
     }
     
     db_data = get_db_data()
