@@ -2,11 +2,7 @@ import mysql.connector
 import csv
 import datetime
 import os
-import smtplib
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from email.mime.base import MIMEBase
-from email import encoders
+import subprocess
 
 # Database connections
 db_produceshop = {
@@ -170,7 +166,7 @@ def run_analysis():
                 'country': s['country_name'],
                 'customer': s['customer_name'],
                 'state': s['order_state_name'],
-                'post_sales_state': psl.name if 'psl' in locals() and psl else s.get('post_sales_state_name'),
+                'post_sales_state': s['post_sales_state_name'],
                 'max_prep_days': 0,
                 'skus': []
             }
@@ -218,38 +214,27 @@ def run_analysis():
     conn_k.close()
     return len(final_list), report_path
 
-def send_email(count, report_path):
-    sender_email = "john@produceshop.com"
-    receiver_email = "ivan.cianci@produceshop.com"
-    
-    msg = MIMEMultipart()
-    msg['From'] = f"John Operations <{sender_email}>"
-    msg['To'] = receiver_email
-    msg['Subject'] = f"Report Tracking Delays - {datetime.date.today().strftime('%d/%m/%Y')} ({count} anomalie)"
-
+def send_email_gog(count, report_path):
+    recipient = 'ivan.cianci@produceshop.com'
+    subject = f"Report Tracking Delays - {datetime.date.today().strftime('%d/%m/%Y')} ({count} anomalie)"
     body = f"Ciao Ivan,\n\nIn allegato trovi il report aggiornato ad oggi delle spedizioni senza tracking oltre le 48 ore lavorative.\n\nTotale anomalie riscontrate: {count}\n\nUn saluto,\nJohn Operations"
-    msg.attach(MIMEText(body, 'plain'))
 
-    if os.path.exists(report_path):
-        with open(report_path, "rb") as attachment:
-            part = MIMEBase("application", "octet-stream")
-            part.set_payload(attachment.read())
-            encoders.encode_base64(part)
-            part.add_header(
-                "Content-Disposition",
-                f"attachment; filename= {os.path.basename(report_path)}",
-            )
-            msg.attach(part)
+    env = os.environ.copy()
+    env["GOG_KEYRING_PASSWORD"] = "produceshop"
+    env["GOG_ACCOUNT"] = "admin@produceshoptech.com"
 
-    try:
-        with smtplib.SMTP("127.0.0.1") as server:
-            server.send_message(msg)
-        return True
-    except Exception as e:
-        print(f"Error sending email: {e}")
-        return False
+    cmd = [
+        'gog', 'gmail', 'send',
+        '--to', recipient,
+        '--subject', subject,
+        '--body', body,
+        '--attach', report_path
+    ]
+    
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    return result.returncode == 0
 
 if __name__ == "__main__":
     count, path = run_analysis()
-    success = send_email(count, path)
+    success = send_email_gog(count, path)
     print(f"Count: {count}, Success: {success}")
