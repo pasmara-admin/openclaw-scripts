@@ -1,6 +1,12 @@
 import mysql.connector
 import csv
 import datetime
+import os
+import smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from email.mime.base import MIMEBase
+from email import encoders
 
 # Database connections
 db_produceshop = {
@@ -63,12 +69,6 @@ def get_delivery_times():
     shop_days = row['days'] if row else 0
     
     # Prendi tutti i tempi prodotto (per SKU/reference)
-    # Logica di ereditarietà:
-    # 1. Carichiamo i valori base (id_product_attribute = 0)
-    # 2. Carichiamo i valori specifici delle varianti (id_product_attribute > 0)
-    # 3. Se la variante esiste, vince. Se non esiste, usiamo il valore base.
-    
-    # Step 1: Carico mappatura reference -> id_product / id_product_attribute
     cursor.execute("""
         SELECT p.id_product, p.reference as p_ref, pa.id_product_attribute, pa.reference as pa_ref 
         FROM ps_product p
@@ -83,11 +83,9 @@ def get_delivery_times():
         if r['p_ref']:
             ref_to_ids[r['p_ref']] = (r['id_product'], 0)
             
-    # Step 2: Carico tutti i giorni impostati in ps_delivery_product
     cursor.execute("SELECT id_product, id_product_attribute, days FROM ps_delivery_product")
     delivery_rows = cursor.fetchall()
     
-    # Mappatura id_product -> {id_attr: days}
     id_delivery_map = {}
     for d in delivery_rows:
         pid = d['id_product']
@@ -96,14 +94,11 @@ def get_delivery_times():
             id_delivery_map[pid] = {}
         id_delivery_map[pid][aid] = d['days']
         
-    # Step 3: Costruisco la mappatura finale per reference
     final_delivery_map = {}
     for ref, (pid, aid) in ref_to_ids.items():
         if pid in id_delivery_map:
-            # Se è una variante, provo a cercare il suo valore specifico
             if aid > 0 and aid in id_delivery_map[pid]:
                 final_delivery_map[ref] = id_delivery_map[pid][aid]
-            # Altrimenti cerco il valore base (id_attr = 0)
             elif 0 in id_delivery_map[pid]:
                 final_delivery_map[ref] = id_delivery_map[pid][0]
             else:
@@ -117,12 +112,11 @@ def get_delivery_times():
 def run_analysis():
     shop_days, delivery_map = get_delivery_times()
     holidays = get_holidays()
-    today = datetime.date(2026, 3, 17) # Martedì
+    today = datetime.date.today()
     
     conn_k = mysql.connector.connect(**db_kanguro)
     cursor_k = conn_k.cursor(dictionary=True)
     
-    # Prendi tutte le spedizioni candidate
     cursor_k.execute("""
         SELECT 
             s.number, 
@@ -153,12 +147,10 @@ def run_analysis():
     
     shipments = cursor_k.fetchall()
     
-    # Raggruppa per numero spedizione
     grouped = {}
     for s in shipments:
         num = s['number']
         if num not in grouped:
-            # Gestione orario e flag post-13:00
             transmission_dt = s['transmission_date']
             extra_day_cutoff = 0
             time_str = ""
@@ -178,7 +170,7 @@ def run_analysis():
                 'country': s['country_name'],
                 'customer': s['customer_name'],
                 'state': s['order_state_name'],
-                'post_sales_state': s['post_sales_state_name'],
+                'post_sales_state': psl.name if 'psl' in locals() and psl else s.get('post_sales_state_name'),
                 'max_prep_days': 0,
                 'skus': []
             }
@@ -191,10 +183,7 @@ def run_analysis():
 
     final_list = []
     for num, data in grouped.items():
-        # Logica: Prep + Shop + 1 (tracking) + eventuale extra day per orario > 13:00
         total_business_days_to_wait = data['max_prep_days'] + shop_days + 1 + data['extra_day_cutoff']
-        
-        # Calcolo data limite lavorativa
         limit_date = add_business_days(data['shipment_date'], total_business_days_to_wait, holidays)
         
         if today > limit_date:
@@ -216,16 +205,51 @@ def run_analysis():
                 'SKUs': ", ".join(data['skus'])
             })
 
-    # Scrittura report in formato CSV compatibile Excel IT (Semicolon + UTF-8-BOM)
-    report_path = '/tmp/report_no_tracking_48_ore.csv'
-    with open(report_path, 'w', newline='', encoding='utf-8-sig') as f:
-        writer = csv.DictWriter(f, fieldnames=final_list[0].keys() if final_list else [], delimiter=';')
-        writer.writeheader()
-        writer.writerows(final_list)
+    report_path = f'/tmp/report_no_tracking_{today.strftime("%Y%m%d")}.csv'
+    if final_list:
+        with open(report_path, 'w', newline='', encoding='utf-8-sig') as f:
+            writer = csv.DictWriter(f, fieldnames=final_list[0].keys(), delimiter=';')
+            writer.writeheader()
+            writer.writerows(final_list)
+    else:
+        with open(report_path, 'w', newline='', encoding='utf-8-sig') as f:
+            f.write("Nessun ritardo trovato")
         
     conn_k.close()
     return len(final_list), report_path
 
+def send_email(count, report_path):
+    sender_email = "john@produceshop.com"
+    receiver_email = "ivan.cianci@produceshop.com"
+    
+    msg = MIMEMultipart()
+    msg['From'] = f"John Operations <{sender_email}>"
+    msg['To'] = receiver_email
+    msg['Subject'] = f"Report Tracking Delays - {datetime.date.today().strftime('%d/%m/%Y')} ({count} anomalie)"
+
+    body = f"Ciao Ivan,\n\nIn allegato trovi il report aggiornato ad oggi delle spedizioni senza tracking oltre le 48 ore lavorative.\n\nTotale anomalie riscontrate: {count}\n\nUn saluto,\nJohn Operations"
+    msg.attach(MIMEText(body, 'plain'))
+
+    if os.path.exists(report_path):
+        with open(report_path, "rb") as attachment:
+            part = MIMEBase("application", "octet-stream")
+            part.set_payload(attachment.read())
+            encoders.encode_base64(part)
+            part.add_header(
+                "Content-Disposition",
+                f"attachment; filename= {os.path.basename(report_path)}",
+            )
+            msg.attach(part)
+
+    try:
+        with smtplib.SMTP("127.0.0.1") as server:
+            server.send_message(msg)
+        return True
+    except Exception as e:
+        print(f"Error sending email: {e}")
+        return False
+
 if __name__ == "__main__":
-    count = run_analysis()
-    print(count)
+    count, path = run_analysis()
+    success = send_email(count, path)
+    print(f"Count: {count}, Success: {success}")
