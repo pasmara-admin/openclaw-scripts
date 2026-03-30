@@ -2,4 +2,4 @@
 
 | File | Description |
 | :--- | :--- |
-| `calculate_cart_abandonment.py` | Calcola il tasso di abbandono carrelli per nazione (oggi vs 7gg vs 30gg). |
+| `analyze_stock_0_sales.py` | Calcola pezzi medi e GMV (30gg pre-soldout) per item out-of-stock negli ultimi 7/14/30 giorni. |
