@@ -6,4 +6,4 @@
 - `report_resi_senza_nota.py`: Estrae i resi confermati (logistica chiusa) che non hanno ancora una Nota di Credito o uno Storno Ricevuta.
 
 
-- `analyze_tracking_delays.py`: Report spedizioni senza tracking (48h + business days + PrestaShop inheritance).
+- `analyze_tracking_delays.py`: Report spedizioni senza tracking (48h + business days + PrestaShop inheritance). Supporta l'invio via email a più destinatari via CLI.
