@@ -3,6 +3,7 @@ import csv
 import datetime
 import os
 import subprocess
+import sys
 
 # Database connections
 db_produceshop = {
@@ -214,27 +215,30 @@ def run_analysis():
     conn_k.close()
     return len(final_list), report_path
 
-def send_email_gog(count, report_path):
-    recipient = 'ivan.cianci@produceshop.com'
+def send_email_gog(count, report_path, recipients):
     subject = f"Report Tracking Delays - {datetime.date.today().strftime('%d/%m/%Y')} ({count} anomalie)"
-    body = f"Ciao Ivan,\n\nIn allegato trovi il report aggiornato ad oggi delle spedizioni senza tracking oltre le 48 ore lavorative.\n\nTotale anomalie riscontrate: {count}\n\nUn saluto,\nJohn Operations"
+    body = f"Ciao,\n\nIn allegato trovi il report aggiornato ad oggi delle spedizioni senza tracking oltre le 48 ore lavorative.\n\nTotale anomalie riscontrate: {count}\n\nUn saluto,\nJohn Operations"
 
     env = os.environ.copy()
     env["GOG_KEYRING_PASSWORD"] = "produceshop"
     env["GOG_ACCOUNT"] = "admin@produceshoptech.com"
 
-    cmd = [
-        'gog', 'gmail', 'send',
-        '--to', recipient,
-        '--subject', subject,
-        '--body', body,
-        '--attach', report_path
-    ]
-    
-    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
-    return result.returncode == 0
+    success = True
+    for recipient in recipients:
+        cmd = [
+            'gog', 'gmail', 'send',
+            '--to', recipient,
+            '--subject', subject,
+            '--body', body,
+            '--attach', report_path
+        ]
+        result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+        if result.returncode != 0:
+            success = False
+    return success
 
 if __name__ == "__main__":
+    recipients = sys.argv[1:] if len(sys.argv) > 1 else ['ivan.cianci@produceshop.com']
     count, path = run_analysis()
-    success = send_email_gog(count, path)
+    success = send_email_gog(count, path, recipients)
     print(f"Count: {count}, Success: {success}")
