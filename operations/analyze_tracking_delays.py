@@ -124,6 +124,7 @@ def run_analysis():
             sol.name as order_state_name,
             so.state_id as order_state_id,
             so.date AS order_date,
+            ot.name AS order_type_name,
             w.display_name AS warehouse_name,
             c.name AS carrier_name,
             cn.name AS country_name,
@@ -131,6 +132,7 @@ def run_analysis():
         FROM lgs_shipment s 
         JOIN sal_order so ON s.order_id = so.id 
         JOIN sal_order_state_lang sol ON so.state_id = sol.state_id AND sol.lang_id = 1
+        JOIN sal_order_type ot ON so.type_id = ot.id
         JOIN inv_warehouse w ON s.warehouse_id = w.id
         LEFT JOIN lgs_carrier c ON s.calc_carrier_id = c.id
         LEFT JOIN dat_country_lang cn ON s.delivery_country_id = cn.id AND cn.lang_id = 1
@@ -162,6 +164,7 @@ def run_analysis():
                 'transmission_time': time_str,
                 'extra_day_cutoff': extra_day_cutoff,
                 'order_date': s['order_date'],
+                'order_type': s['order_type_name'],
                 'warehouse': s['warehouse_name'],
                 'carrier': s['carrier_name'],
                 'country': s['country_name'],
@@ -187,6 +190,7 @@ def run_analysis():
             delay_days = (today - limit_date).days
             final_list.append({
                 'Numero Spedizione': data['number'],
+                'Tipo Ordine': data['order_type'],
                 'Data Ordine': data['order_date'],
                 'Data Invio Flussi': data['shipment_date'],
                 'Ora Invio Flussi': data['transmission_time'],
