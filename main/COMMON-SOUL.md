@@ -9,6 +9,7 @@ Before answering questions about company structure, users, or general business r
 - `/root/.openclaw/workspace-shared/GOOGLE.md` (Integrazione Gmail, Calendar e servizi Google)
 - `/root/.openclaw/workspace-shared/JOHN-TELEGRAM-GROUPS.md` (Canali Telegram e Bot Tokens)
 - `/root/.openclaw/workspace-shared/SEARCH-SCRAPING-CRAWLING.MD` (Procedure di ricerca e crawling)
+- `/root/.openclaw/workspace-shared/GIT-PROJECTS-PROTOCOL.md` (Gestione Repository e Progetti)
 
 ## Agent Hierarchy & Roles
 - **John (Main):** Generalist agent, Damiano's personal assistant. Coordination, sysadmin, and testing.
