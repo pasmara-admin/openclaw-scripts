@@ -52,7 +52,7 @@ def send_email(df, recipient_emails):
     body = "Ciao,\\n\\nin allegato il report degli ordini con pagamento in bonifico non saldati da più di 7 giorni con importo superiore a 500 Euro.\\n\\nJohn Operations"
     subject = "Report richiamate bonifici pending"
     
-    cmd = f'source /root/.openclaw/workspace-shared/setup_gog_env.sh && export GOG_KEYRING_PASSWORD="produceshop" && export GOG_ACCOUNT="admin@produceshoptech.com" && gog gmail send --to "{recipient_emails}" --subject "{subject}" --body "{body}" --attach "{filename}"'
+    cmd = f'bash -c "source /root/.openclaw/workspace-shared/setup_gog_env.sh && export GOG_KEYRING_PASSWORD=\'produceshop\' && export GOG_ACCOUNT=\'admin@produceshoptech.com\' && gog gmail send --to \'{recipient_emails}\' --subject \'{subject}\' --body \'{body}\' --attach \'{filename}\'"'
     
     try:
         os.system(cmd)
