@@ -44,21 +44,26 @@ def get_unpaid_bank_transfers():
         print(f"Error fetching data: {e}")
         return None
 
-def send_email(df, recipient_email):
-    # This is a placeholder for the email sending logic. 
-    # In a real scenario, SMTP details from environment or config would be used.
-    # For now, we'll simulate the output.
+def send_email(df, recipient_emails):
     filename = f"report_bonifici_pendenti_{datetime.now().strftime('%Y%m%d')}.csv"
     df.to_csv(filename, index=False)
-    print(f"Report generated: {filename}")
-    print(f"Simulating email sent to {recipient_email} with {len(df)} records.")
-    # Clean up
-    # os.remove(filename)
+    
+    # Using gog CLI for sending email
+    body = "Ciao,\\n\\nin allegato il report degli ordini con pagamento in bonifico non saldati da più di 7 giorni con importo superiore a 500 Euro.\\n\\nJohn Operations"
+    subject = "Report Settimanale Ordini Bonifico Pendenti"
+    
+    cmd = f'source /root/.openclaw/workspace-shared/setup_gog_env.sh && export GOG_KEYRING_PASSWORD="produceshop" && export GOG_ACCOUNT="admin@produceshoptech.com" && gog gmail send --to "{recipient_emails}" --subject "{subject}" --body "{body}" --attach "{filename}"'
+    
+    try:
+        os.system(cmd)
+        print(f"Email sent successfully to {recipient_emails}")
+    finally:
+        if os.path.exists(filename):
+            os.remove(filename)
 
 if __name__ == "__main__":
     report_df = get_unpaid_bank_transfers()
     if report_df is not None and not report_df.empty:
-        # Example recipient from user request
-        send_email(report_df, "ivan.cianci@produceshop.com")
+        send_email(report_df, "baldassare.gulotta@produceshop.com, support@produceshop.com, ivan.cianci@produceshop.com")
     else:
         print("No pending bank transfers found matching criteria.")
