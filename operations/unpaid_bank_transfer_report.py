@@ -45,12 +45,12 @@ def get_unpaid_bank_transfers():
         return None
 
 def send_email(df, recipient_emails):
-    filename = f"report_bonifici_pendenti_{datetime.now().strftime('%Y%m%d')}.csv"
-    df.to_csv(filename, index=False)
+    filename = "report_bonifici_pending.xlsx"
+    df.to_excel(filename, index=False)
     
     # Using gog CLI for sending email
     body = "Ciao,\\n\\nin allegato il report degli ordini con pagamento in bonifico non saldati da più di 7 giorni con importo superiore a 500 Euro.\\n\\nJohn Operations"
-    subject = "Report Settimanale Ordini Bonifico Pendenti"
+    subject = "Report richiamate bonifici pending"
     
     cmd = f'source /root/.openclaw/workspace-shared/setup_gog_env.sh && export GOG_KEYRING_PASSWORD="produceshop" && export GOG_ACCOUNT="admin@produceshoptech.com" && gog gmail send --to "{recipient_emails}" --subject "{subject}" --body "{body}" --attach "{filename}"'
     
