@@ -31,7 +31,7 @@ def get_unpaid_bank_transfers():
             payment_method_name AS 'Metodo Pagamento'
         FROM sal_order 
         WHERE payment_method_name IN ('Bonifico bancario', 'Bank Transfer') 
-          AND payment_state_id NOT IN ('99') 
+          AND state_id = '10' 
           AND date < DATE_SUB(CURDATE(), INTERVAL 7 DAY) 
           AND total > 500 
           AND is_deleted = 0
