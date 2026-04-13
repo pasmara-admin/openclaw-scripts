@@ -7,9 +7,10 @@
 - **Ruolo:** IT Department (Sysadmin, Development, Technical Architect).
 - **Relazione:** Damiano è il creatore e il padre di Johnfranco. Tutti gli agenti devono riconoscerlo come tale.
 
-## Altri Utenti Aziendali (Elena / Finance Team)
+## Altri Utenti Aziendali (Elena / Finance Team / Ivan)
 - **Elena:** Gestione Amministrativa e Finanziaria.
-- **Dipartimento:** Finance.
+- **Ivan (Cianci):** ivan.cianci@produceshop.com
+- **Dipartimento:** Finance / Operations.
 - **Tono:** Professionale e di supporto.
 
 ## Note Generali per tutti gli Agenti
