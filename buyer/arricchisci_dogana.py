@@ -1,4 +1,5 @@
 import pandas as pd
+import mysql.connector
 import sys
 import os
 
@@ -18,7 +19,7 @@ def classify_product(name):
        any(k in name for k in ['LEGNO', 'ACACIA', 'NOCE', 'ROVERE', 'PINO', 'BAMBU', 'TEAK']):
         return '94036010', 0
     
-    # Mobili in Metallo / Lettini / Sdraio (Classificazione comune per arredamento esterno)
+    # Mobili in Metallo / Lettini / Sdraio
     if any(k in name for k in ['LETTINO', 'SDRAIO', 'SPIAGGINA', 'DONDOLO', 'BASCULA', 'PIEGHEVOLE']):
         return '94017900', 0
     
@@ -34,7 +35,7 @@ def classify_product(name):
     if 'CUSCINO' in name or 'MATERASSO' in name:
         return '94049090', 0
         
-    # Manufatti in legno generici (Fioriere, Cancelli, Steccati)
+    # Manufatti in legno generici (Fioriere, Cancelli)
     if any(k in name for k in ['FIORIERA', 'GRIGLIA', 'CANCELLO', 'RECINTO', 'PANNELLO']) and 'LEGNO' in name:
         return '44219999', 0
         
@@ -46,32 +47,89 @@ def classify_product(name):
     if 'POLIPROPILENE' in name or 'RESINA' in name:
         return '94037000', 0
 
-    # Default: Altri mobili in metallo (voce generica molto comune per il nostro catalogo)
+    # Default: Altri mobili in metallo
     return '94032080', 0
 
+def get_prestashop_info(skus):
+    """
+    Recupera nome e descrizione da Prestashop basandosi sullo SKU (reference).
+    """
+    ps_data = {}
+    try:
+        db = mysql.connector.connect(
+            host='62.84.190.199',
+            user='john',
+            password='qARa6aRozi6I',
+            database='produceshop',
+            ssl_disabled=True
+        )
+        cursor = db.cursor(dictionary=True)
+        
+        # Gestione batch per performance
+        format_strings = ','.join(['%s'] * len(skus))
+        query = f"""
+            SELECT p.reference, pl.name, pl.description_short 
+            FROM ps_product p
+            JOIN ps_product_lang pl ON p.id_product = pl.id_product
+            WHERE p.reference IN ({format_strings}) AND pl.id_lang = 1 AND pl.id_shop = 1
+        """
+        cursor.execute(query, tuple(skus))
+        results = cursor.fetchall()
+        
+        for res in results:
+            # Pulizia HTML minima dalla descrizione
+            clean_desc = res['description_short'].replace('<p>', '').replace('</p>', ' ').replace('<br />', ' ').strip()
+            ps_data[res['reference']] = f"{res['name']} {clean_desc}"
+            
+    except Exception as e:
+        print(f"Errore connessione Prestashop: {e}")
+    finally:
+        if 'db' in locals() and db.is_connected():
+            cursor.close()
+            db.close()
+    return ps_data
+
 def process_file(input_path):
-    # Caricamento file
     if input_path.endswith('.csv'):
         df = pd.read_csv(input_path)
     else:
         df = pd.read_excel(input_path)
 
-    # Ry structure: Col A (SKU), Col B (Name), Col C (EAN)
-    # Verifichiamo di avere almeno 3 colonne
     if len(df.columns) < 3:
         print("Errore: Il file deve avere almeno 3 colonne (SKU, Nome, EAN).")
         return
 
+    sku_col = df.columns[0]
     name_col = df.columns[1]
     
-    print(f"Esecuzione classificazione AI su {len(df)} righe...")
+    # Lista SKU per query Prestashop
+    skus = [str(sku).strip() for sku in df[sku_col].dropna().unique() if str(sku).strip() != '']
     
-    # Applicazione logica di classificazione
-    results = df[name_col].apply(classify_product)
+    print("Recupero informazioni estese da Prestashop...")
+    ps_info = get_prestashop_info(skus)
     
-    # Popolamento colonne D ed E
-    df['Codice Doganale'] = [res[0] for res in results]
-    df['Unità Addizionale'] = [res[1] for res in results]
+    print(f"Esecuzione classificazione su {len(df)} righe...")
+    
+    results_dogana = []
+    results_unita = []
+    
+    for _, row in df.iterrows():
+        sku = str(row[sku_col]).strip()
+        name_file = str(row[name_col])
+        
+        # Se la descrizione nel file è corta (<15 caratteri) e abbiamo info da PS, usiamo quelle
+        extended_name = ps_info.get(sku, name_file)
+        if len(name_file) < 15 and sku in ps_info:
+            final_name = extended_name
+        else:
+            final_name = name_file
+            
+        dogana, unita = classify_product(final_name)
+        results_dogana.append(dogana)
+        results_unita.append(unita)
+    
+    df['Codice Doganale'] = results_dogana
+    df['Unità Addizionale'] = results_unita
 
     output_path = "PROCESSED_" + os.path.basename(input_path)
     if output_path.endswith('.csv'):
