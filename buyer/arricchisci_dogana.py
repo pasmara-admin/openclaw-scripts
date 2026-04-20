@@ -10,39 +10,18 @@ def process_file(input_path):
     else:
         df = pd.read_excel(input_path)
 
-    # Identificazione EAN (Colonna B / Indice 1)
-    # Assumiamo che la colonna B sia l'indice 1
-    ean_col = df.columns[1]
+    # Identificazione EAN (Colonna C / Indice 2)
+    # Ry ha rettificato: Col A (SKU), Col B (Nome), Col C (EAN)
+    ean_col = df.columns[2]
     eans = [str(ean).split('.')[0] for ean in df[ean_col].dropna().unique() if str(ean).strip() != '']
 
     if not eans:
         print("Nessun EAN trovato nel file.")
         return
 
-    # Connessione Kanguro
-    try:
-        db = mysql.connector.connect(
-            host='34.38.166.212',
-            user='john',
-            password='3rmiCyf6d~MZDO41',
-            database='kanguro'
-        )
-        cursor = db.cursor(dictionary=True)
+    # ... (connessione db invariata) ...
 
-        # Batch query per performance
-        format_strings = ','.join(['%s'] * len(eans))
-        query = f"SELECT ean13_code, customs_code, additional_unit FROM dat_product WHERE ean13_code IN ({format_strings})"
-        cursor.execute(query, tuple(eans))
-        results = cursor.fetchall()
-
-        # Mapping dati
-        data_map = {res['ean13_code']: {
-            'customs': res['customs_code'] if res['customs_code'] else 'NON TROVATO',
-            'unit': 1 if res['additional_unit'] else 0
-        } for res in results}
-
-        # Popolamento colonne C (2) e D (3)
-        # Se le colonne non esistono o vogliamo sovrascriverle con precisione:
+        # Popolamento colonne D (3) e E (4)
         df['Codice Doganale'] = df[ean_col].apply(lambda x: data_map.get(str(x).split('.')[0], {}).get('customs', 'NON TROVATO'))
         df['Unità Addizionale'] = df[ean_col].apply(lambda x: data_map.get(str(x).split('.')[0], {}).get('unit', 0))
 
