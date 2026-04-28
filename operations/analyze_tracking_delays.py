@@ -142,7 +142,7 @@ def run_analysis():
             AND s.tracking_id IS NULL 
             AND s.state_id != '99' 
             AND so.state_id != '00'
-            AND (p.state_id IS NULL OR p.state_id NOT IN ('09', '10', '11'))
+            AND (p.state_id IS NULL OR p.state_id NOT IN ('02', '03', '05', '06', '07', '08', '09', '10', '11'))
     """)
     
     shipments = cursor_k.fetchall()
