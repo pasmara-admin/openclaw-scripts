@@ -8,3 +8,4 @@
 
 
 - `analyze_tracking_delays.py`: Report spedizioni senza tracking (48h + business days + PrestaShop inheritance). Supporta l'invio via email a più destinatari via CLI.
+- operations/ordini_bloccati.py: Genera report Excel per ordini mancanti tra PS/KG e ordini bloccati su Kanguro.
