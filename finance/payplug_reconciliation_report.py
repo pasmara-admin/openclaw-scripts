@@ -66,7 +66,7 @@ doc_map = {} # order_id -> doc info
 for i in range(0, len(order_ids), chunk_size):
     chunk = order_ids[i:i+chunk_size]
     format_strings = ','.join(['%s'] * len(chunk))
-    cursor.execute(f"SELECT order_id, date, full_number, subtotal FROM bil_document WHERE order_id IN ({format_strings}) ORDER BY id ASC", tuple(chunk))
+    cursor.execute(f"SELECT order_id, date, full_number, total FROM bil_document WHERE order_id IN ({format_strings}) ORDER BY id ASC", tuple(chunk))
     for row in cursor.fetchall():
         if row['order_id'] not in doc_map: # Keep the first one
             doc_map[row['order_id']] = row
@@ -77,7 +77,7 @@ conn.close()
 print("Processing results...")
 data_fattura = []
 num_doc = []
-importo_netto = []
+importo_totale = []
 stato_doc = []
 num_ordine = []
 
@@ -92,24 +92,24 @@ for index, row in df_filtered.iterrows():
         if doc:
             data_fattura.append(doc['date'].strftime('%Y-%m-%d') if doc['date'] else "")
             num_doc.append(doc['full_number'] if doc['full_number'] else "")
-            importo_netto.append(float(doc['subtotal']) if doc['subtotal'] else 0.0)
+            importo_totale.append(float(doc['total']) if doc['total'] else 0.0)
             stato_doc.append("Emessa")
         else:
             data_fattura.append("")
             num_doc.append("")
-            importo_netto.append("")
+            importo_totale.append("")
             stato_doc.append("Da emettere")
     else:
         num_ordine.append("")
         data_fattura.append("")
         num_doc.append("")
-        importo_netto.append("")
+        importo_totale.append("")
         stato_doc.append("Non trovato in DB")
 
 df_filtered['Numero Ordine Kanguro'] = num_ordine
 df_filtered['Data Fattura'] = data_fattura
 df_filtered['Numero Documento'] = num_doc
-df_filtered['Importo Netto Fattura'] = importo_netto
+df_filtered['Importo Totale Fattura'] = importo_totale
 df_filtered['Stato Documento'] = stato_doc
 
 print(f"Writing to {output_file}...")
