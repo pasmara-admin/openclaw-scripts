@@ -1,7 +1,6 @@
 import pandas as pd
 import mysql.connector
 import sys
-import os
 
 if len(sys.argv) < 3:
     print("Usage: python3 payplug_reconciliation_report.py <input_excel> <output_excel>")
@@ -15,12 +14,12 @@ df_all = pd.read_excel(input_file, sheet_name=None)
 first_sheet_name = list(df_all.keys())[0]
 df = df_all[first_sheet_name]
 
-# Ensure column E (index 4) exists and filter 'Pagamento'
 pagamenti = df[df.iloc[:, 4] == "Pagamento"].copy()
-
-# A(0), B(1), C(2), G(6), H(7), I(8), J(9), L(11), M(12), N(13), P(15)
 cols_to_keep = [0, 1, 2, 6, 7, 8, 9, 11, 12, 13, 15]
 df_filtered = pagamenti.iloc[:, cols_to_keep].copy()
+
+api_ids = df_filtered.iloc[:, 10].dropna().unique().tolist()
+print(f"Found {len(api_ids)} unique API IDs. Fetching from DB...")
 
 conn = mysql.connector.connect(
     host="34.38.166.212",
@@ -30,24 +29,54 @@ conn = mysql.connector.connect(
 )
 cursor = conn.cursor(dictionary=True)
 
+# We batch select order transactions
+chunk_size = 1000
+order_map = {} # api_id -> order_id
+
+for i in range(0, len(api_ids), chunk_size):
+    chunk = api_ids[i:i+chunk_size]
+    format_strings = ','.join(['%s'] * len(chunk))
+    # Check transaction_code
+    cursor.execute(f"SELECT transaction_code, order_id FROM sal_order_transaction WHERE transaction_code IN ({format_strings})", tuple(chunk))
+    for row in cursor.fetchall():
+        order_map[row['transaction_code']] = row['order_id']
+    
+    # Check payment_code for those missing
+    missing = [c for c in chunk if c not in order_map]
+    if missing:
+        format_strings_m = ','.join(['%s'] * len(missing))
+        cursor.execute(f"SELECT payment_code, order_id FROM sal_order_transaction WHERE payment_code IN ({format_strings_m})", tuple(missing))
+        for row in cursor.fetchall():
+            order_map[row['payment_code']] = row['order_id']
+
+order_ids = list(set(order_map.values()))
+print(f"Found {len(order_ids)} matching orders. Fetching billing documents...")
+
+# Batch select billing documents
+doc_map = {} # order_id -> doc info
+for i in range(0, len(order_ids), chunk_size):
+    chunk = order_ids[i:i+chunk_size]
+    format_strings = ','.join(['%s'] * len(chunk))
+    cursor.execute(f"SELECT order_id, date, full_number, subtotal FROM bil_document WHERE order_id IN ({format_strings}) ORDER BY id ASC", tuple(chunk))
+    for row in cursor.fetchall():
+        if row['order_id'] not in doc_map: # Keep the first one
+            doc_map[row['order_id']] = row
+
+cursor.close()
+conn.close()
+
+print("Processing results...")
 data_fattura = []
 num_doc = []
 importo_netto = []
 stato_doc = []
 
 for index, row in df_filtered.iterrows():
-    # ID API is at the last position of our filtered cols (index 10)
-    api_id = row.iloc[10] 
+    api_id = row.iloc[10]
     
-    cursor.execute("SELECT order_id FROM sal_order_transaction WHERE transaction_code = %s OR payment_code = %s LIMIT 1", (api_id, api_id))
-    transaction = cursor.fetchone()
-    
-    if transaction:
-        order_id = transaction['order_id']
-        # Get the first invoice/receipt for this order
-        cursor.execute("SELECT date, full_number, subtotal FROM bil_document WHERE order_id = %s ORDER BY id ASC LIMIT 1", (order_id,))
-        doc = cursor.fetchone()
-        
+    order_id = order_map.get(api_id)
+    if order_id:
+        doc = doc_map.get(order_id)
         if doc:
             data_fattura.append(doc['date'].strftime('%Y-%m-%d') if doc['date'] else "")
             num_doc.append(doc['full_number'] if doc['full_number'] else "")
@@ -76,6 +105,4 @@ with pd.ExcelWriter(output_file, engine='openpyxl') as writer:
     
     df_filtered.to_excel(writer, sheet_name="Riconciliazione Pagamenti", index=False)
 
-cursor.close()
-conn.close()
 print("Done!")
