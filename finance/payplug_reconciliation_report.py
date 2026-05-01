@@ -50,7 +50,16 @@ for i in range(0, len(api_ids), chunk_size):
             order_map[row['payment_code']] = row['order_id']
 
 order_ids = list(set(order_map.values()))
-print(f"Found {len(order_ids)} matching orders. Fetching billing documents...")
+print(f"Found {len(order_ids)} matching orders. Fetching billing documents and order numbers...")
+
+# Batch select order numbers (sal_order.number)
+order_number_map = {} # order_id -> order_number
+for i in range(0, len(order_ids), chunk_size):
+    chunk = order_ids[i:i+chunk_size]
+    format_strings = ','.join(['%s'] * len(chunk))
+    cursor.execute(f"SELECT id, number FROM sal_order WHERE id IN ({format_strings})", tuple(chunk))
+    for row in cursor.fetchall():
+        order_number_map[row['id']] = row['number']
 
 # Batch select billing documents
 doc_map = {} # order_id -> doc info
@@ -70,12 +79,15 @@ data_fattura = []
 num_doc = []
 importo_netto = []
 stato_doc = []
+num_ordine = []
 
 for index, row in df_filtered.iterrows():
     api_id = row.iloc[10]
     
     order_id = order_map.get(api_id)
     if order_id:
+        num_ordine.append(order_number_map.get(order_id, ""))
+        
         doc = doc_map.get(order_id)
         if doc:
             data_fattura.append(doc['date'].strftime('%Y-%m-%d') if doc['date'] else "")
@@ -88,11 +100,13 @@ for index, row in df_filtered.iterrows():
             importo_netto.append("")
             stato_doc.append("Da emettere")
     else:
+        num_ordine.append("")
         data_fattura.append("")
         num_doc.append("")
         importo_netto.append("")
         stato_doc.append("Non trovato in DB")
 
+df_filtered['Numero Ordine Kanguro'] = num_ordine
 df_filtered['Data Fattura'] = data_fattura
 df_filtered['Numero Documento'] = num_doc
 df_filtered['Importo Netto Fattura'] = importo_netto
