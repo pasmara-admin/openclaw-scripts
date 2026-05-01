@@ -1,8 +1,3 @@
-- `generate_raee_analysis.py`: RAEE extraction logic for all categories and generic sales export.
-- `generate_raee_italy_2026.py`: Specific RAEE logic for Italy (Produceshop website) including battery analysis logic mapping.
-- `generate_raee_spain_2026.py`: Specific RAEE logic for Spain (Produceshop website and Marketplace channels).
-- `generate_raee_germany_2026_all.py`: Specific RAEE logic for Germany (Produceshop website) including both active and inactive SKUs.
-- `generate_battery_germany_2026.py`: Extraction and template generation for German Battery (BattG) declarations.
-- `process_payplug.py`: Standard payment gateway ingestion and reconciliation.
-- `reconciliation_phase1.py` - `reconciliation_phase5.py`: Phased reconciliation logic for the Master Reconciliation Ledger.
-- `run_report_revenue.py` / `send_report_revenue.py`: Automated generation and sending of Revenue Reports.
+# Finance Scripts List
+
+- `payplug_reconciliation_report.py` : Adds a reconciliation sheet to PayPlug exported Excel reports (matches transactions with Kanguro billing documents).
