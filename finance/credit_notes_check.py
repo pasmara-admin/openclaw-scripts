@@ -10,13 +10,12 @@ conn = mysql.connector.connect(
 )
 cursor = conn.cursor(dictionary=True)
 
-# 1. Fetch all orders from 2026 that are cancelled OR have refunds
-# We also want to know their total_refunded and billing_state_id to be thorough
+# Ignore rounding anomalies for refunded amount by checking > 0.01
 query_orders = """
 SELECT id, number, date, total, total_refunded, state_id, billing_state_id
 FROM sal_order
 WHERE date >= '2026-01-01'
-  AND (state_id = '00' OR total_refunded > 0 OR billing_state_id IN ('11', '28', '29'))
+  AND (state_id = '00' OR total_refunded >= 0.01 OR billing_state_id IN ('11', '28', '29'))
 """
 cursor.execute(query_orders)
 target_orders = cursor.fetchall()
@@ -28,7 +27,6 @@ if not target_orders:
 
 order_ids = [str(o['id']) for o in target_orders]
 
-# 2. Fetch billing documents for these orders
 doc_map = {}
 chunk_size = 5000
 for i in range(0, len(order_ids), chunk_size):
@@ -48,10 +46,10 @@ for i in range(0, len(order_ids), chunk_size):
         if o_id not in doc_map:
             doc_map[o_id] = {'invoices': [], 'credit_notes': [], 'inv_total': 0.0, 'cn_total': 0.0}
         
-        if t_id in (1, 3): # Fattura / Ricevuta
+        if t_id in (1, 3): 
             doc_map[o_id]['invoices'].append(row['full_number'])
             doc_map[o_id]['inv_total'] += float(row['total']) if row['total'] else 0.0
-        elif t_id in (2, 4): # Nota di Credito / Storno Ricevuta
+        elif t_id in (2, 4): 
             doc_map[o_id]['credit_notes'].append(row['full_number'])
             doc_map[o_id]['cn_total'] += float(row['total']) if row['total'] else 0.0
 
@@ -61,7 +59,6 @@ for o in target_orders:
     o_id = o['id']
     docs = doc_map.get(o_id)
     
-    # We ONLY care about orders that HAD an invoice/receipt issued
     if docs and docs['invoices']:
         inv_str = " + ".join(docs['invoices'])
         inv_tot = round(docs['inv_total'], 2)
@@ -89,7 +86,7 @@ for o in target_orders:
         })
 
 df = pd.DataFrame(results)
-output_file = "/root/.openclaw/workspace-finance/Verifica_Note_Credito_2026.xlsx"
+output_file = "/root/.openclaw/workspace-finance/Verifica_Note_Credito_2026_v2.xlsx"
 print(f"Saving to {output_file}...")
 df.to_excel(output_file, index=False)
 
