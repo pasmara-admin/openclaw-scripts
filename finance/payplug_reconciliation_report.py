@@ -61,18 +61,27 @@ for i in range(0, len(order_ids), chunk_size):
     for row in cursor.fetchall():
         order_number_map[row['id']] = row['number']
 
-# Batch select billing documents (only Invoices and Receipts, type_id IN (1,3))
+# Batch select billing documents (only Invoices and Receipts, type_id IN (1,3), exclude cancelled/provisional)
 doc_map = {} # order_id -> {'date': max_date, 'full_number': list_of_numbers, 'total': sum_of_totals}
 for i in range(0, len(order_ids), chunk_size):
     chunk = order_ids[i:i+chunk_size]
     format_strings = ','.join(['%s'] * len(chunk))
-    cursor.execute(f"SELECT order_id, date, full_number, total FROM bil_document WHERE order_id IN ({format_strings}) AND type_id IN (1,3) ORDER BY id ASC", tuple(chunk))
+    query = f"""
+    SELECT order_id, date, full_number, total 
+    FROM bil_document 
+    WHERE order_id IN ({format_strings}) 
+      AND type_id IN (1,3) 
+      AND state_id NOT IN ('00', '80')
+      AND full_number IS NOT NULL
+    ORDER BY id ASC
+    """
+    cursor.execute(query, tuple(chunk))
     for row in cursor.fetchall():
         o_id = row['order_id']
         if o_id not in doc_map:
             doc_map[o_id] = {
                 'date': row['date'],
-                'numbers': [row['full_number']] if row['full_number'] else [],
+                'numbers': [row['full_number']],
                 'total': float(row['total']) if row['total'] else 0.0
             }
         else:
