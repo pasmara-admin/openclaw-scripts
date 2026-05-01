@@ -52,7 +52,7 @@ for i in range(0, len(api_ids), chunk_size):
 order_ids = list(set(order_map.values()))
 print(f"Found {len(order_ids)} matching orders. Fetching billing documents and order numbers...")
 
-# Batch select order numbers (sal_order.number)
+# Batch select order numbers
 order_number_map = {} # order_id -> order_number
 for i in range(0, len(order_ids), chunk_size):
     chunk = order_ids[i:i+chunk_size]
@@ -61,15 +61,26 @@ for i in range(0, len(order_ids), chunk_size):
     for row in cursor.fetchall():
         order_number_map[row['id']] = row['number']
 
-# Batch select billing documents
-doc_map = {} # order_id -> doc info
+# Batch select billing documents (only Invoices and Receipts, type_id IN (1,3))
+doc_map = {} # order_id -> {'date': max_date, 'full_number': list_of_numbers, 'total': sum_of_totals}
 for i in range(0, len(order_ids), chunk_size):
     chunk = order_ids[i:i+chunk_size]
     format_strings = ','.join(['%s'] * len(chunk))
-    cursor.execute(f"SELECT order_id, date, full_number, total FROM bil_document WHERE order_id IN ({format_strings}) ORDER BY id ASC", tuple(chunk))
+    cursor.execute(f"SELECT order_id, date, full_number, total FROM bil_document WHERE order_id IN ({format_strings}) AND type_id IN (1,3) ORDER BY id ASC", tuple(chunk))
     for row in cursor.fetchall():
-        if row['order_id'] not in doc_map: # Keep the first one
-            doc_map[row['order_id']] = row
+        o_id = row['order_id']
+        if o_id not in doc_map:
+            doc_map[o_id] = {
+                'date': row['date'],
+                'numbers': [row['full_number']] if row['full_number'] else [],
+                'total': float(row['total']) if row['total'] else 0.0
+            }
+        else:
+            if row['full_number']:
+                doc_map[o_id]['numbers'].append(row['full_number'])
+            doc_map[o_id]['total'] += float(row['total']) if row['total'] else 0.0
+            if row['date'] and doc_map[o_id]['date'] and row['date'] > doc_map[o_id]['date']:
+                doc_map[o_id]['date'] = row['date'] # take latest date if multiple
 
 cursor.close()
 conn.close()
@@ -89,10 +100,10 @@ for index, row in df_filtered.iterrows():
         num_ordine.append(order_number_map.get(order_id, ""))
         
         doc = doc_map.get(order_id)
-        if doc:
+        if doc and doc['numbers']: # Has at least one valid invoice/receipt
             data_fattura.append(doc['date'].strftime('%Y-%m-%d') if doc['date'] else "")
-            num_doc.append(doc['full_number'] if doc['full_number'] else "")
-            importo_totale.append(float(doc['total']) if doc['total'] else 0.0)
+            num_doc.append(" + ".join(doc['numbers']))
+            importo_totale.append(round(doc['total'], 2))
             stato_doc.append("Emessa")
         else:
             data_fattura.append("")
