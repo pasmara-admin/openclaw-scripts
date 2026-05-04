@@ -28,7 +28,7 @@ PS_CONFIG = {"host": "62.84.190.199", "user": "john", "password": "qARa6aRozi6I"
 today = datetime.now().strftime('%Y-%m-%d')
 
 # 1. Missing Orders (PS but not KG)
-ps_refs = run_query(**PS_CONFIG, query=f"SELECT reference FROM ps_orders WHERE date_add >= DATE_SUB('{today}', INTERVAL 1 MONTH);")
+ps_refs = run_query(**PS_CONFIG, query=f"SELECT reference FROM ps_orders WHERE date_add >= DATE_SUB('{today}', INTERVAL 1 MONTH) AND current_state != 32;")
 kg_refs = run_query(**KG_CONFIG, query=f"SELECT number FROM sal_order WHERE date >= DATE_SUB('{today}', INTERVAL 1 MONTH);")
 
 if not ps_refs.empty and not kg_refs.empty:
