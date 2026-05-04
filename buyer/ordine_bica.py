@@ -14,12 +14,10 @@ def get_order_bica():
     conn = pymysql.connect(**db_config)
     try:
         # 1. Carico i prodotti del fornitore BICA (ID 252)
-        # Includiamo anche quelli con supplier_id NULL ma che hanno vendite per sicurezza o mapping secondari?
-        # Il protocollo dice "Includere tutti gli SKU... che hanno avuto movimenti o hanno stock residuo"
         query_products = """
             SELECT 
                 p.id, p.reference as sku, p.name, p.packaging_pieces as pack_qty, 
-                p.is_active, p.composite
+                p.is_active, CAST(p.composite AS UNSIGNED) as composite
             FROM dat_product p
             WHERE p.supplier_id = 252 AND p.is_deleted = 0
         """
@@ -36,16 +34,14 @@ def get_order_bica():
         df_combos = pd.read_sql(query_combos, conn)
 
         # 3. Trend Vendite (Ultimi 30 giorni) - USCITE REALI (scarichi stock)
-        # Nota: Il protocollo specifica "Media giornaliera basata sulle USCITE REALI negli ultimi 30 giorni"
-        # Usiamo sal_order_row filtrando per ordini spediti o stati avanzati? 
-        # "Uscite reali" solitamente implica merce uscita dal magazzino.
         date_limit = (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d')
         query_sales = f"""
             SELECT `row`.product_id, SUM(`row`.qty) as total_sold
             FROM sal_order_row `row`
             JOIN sal_order o ON `row`.order_id = o.id
             WHERE o.date >= '{date_limit}'
-            AND o.state_id IN ('90', '99') -- Stati tipici di spedito/chiuso per uscite reali
+            AND o.state_id IN ('90', '99')
+            AND `row`.is_deleted = 0
             GROUP BY `row`.product_id
         """
         df_sales = pd.read_sql(query_sales, conn)
