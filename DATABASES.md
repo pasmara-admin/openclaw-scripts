@@ -1,12 +1,18 @@
 # DATABASES.md - Database Infrastructure & Guidelines
 
 ## Database Mapping & Sources of Truth
-- **Wallaby:** The primary source for **Pre-Sale** and catalog management. Use for restructured product data and catalog attributes.
-- **Kanguro (ERP):** The "Source of Truth" for all **Post-Sale** operations. Use for orders, marketplace data, invoices, revenue, shipping, and purchases.
-- **PrestaShop:** Use **only** for abandoned carts, checkout data, and frontend customer info. The PrestaShop backoffice is NOT used.
-- **Numbat:** Handles customer support and ticketing (Zoho Desk integration).
-- **Pricer:** Database simulatore di prezzi. Integra dati da Kanguro (volumi/pesi) e Wallaby (media) per simulare prezzi di uscita basati su costi e parametri configurabili.
-- **Buyer & Crawler:** Dedicated server for scouting, supplier analysis, and large-scale competitor monitoring.
+- **Wallaby:** The primary source for **Pre-Sale** and catalog management. It contains "restructured" product data, descriptions, and attributes simplified for catalog use. Use this for data regarding the website's product presentation.
+- **Kanguro (ERP):** The "Source of Truth" for all **Post-Sale** operations. It contains the real business logic for orders, marketplace imports, invoices, revenue calculation, shipping/logistics, and purchase orders.
+- **PrestaShop:** The backend database for the e-commerce engine. Use **only** for abandoned carts, checkout data, and raw frontend customer records.
+- **Numbat:** Dedicated to customer support, managing tickets (via Zoho Desk integration) and customer interactions.
+- **Pricer:** Price simulation database. It integrates data from Kanguro (volumes/weights) and Wallaby (average prices) to simulate sell prices based on configurable cost parameters.
+- **Buyer & Crawler:** Infrastructure for product scouting, supplier analysis, and large-scale competitor monitoring.
+
+## Common Identifiers & Nomenclature
+To ensure data consistency across systems, always refer to the **NOMENCLATURE.md** file.
+- **SKU (`reference`):** The unique warehouse code.
+- **ID Product:** PrestaShop base ID.
+- **ID Attribute:** PrestaShop variant/combination ID.
 
 ## Connection Details (Mandatory Reading)
 Specific connection strings, schemas, and critical performance rules are documented in:
