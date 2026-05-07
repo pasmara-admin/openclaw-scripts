@@ -1,6 +1,7 @@
 import mysql.connector
 from datetime import datetime, timedelta
 import pandas as pd
+import os
 
 # Database configuration
 config = {
@@ -25,11 +26,13 @@ def get_data(lookback_days):
     stock_0_ids = df_stock_0['product_id'].tolist()
     
     if not stock_0_ids:
+        conn.close()
         return None
 
     # 2. Check sales in the last N days for these products
     n_days_ago = (datetime.now() - timedelta(days=lookback_days)).strftime('%Y-%m-%d')
     
+    # Filtering by type_id = 2 (ProduceShop) as per SOUL.md
     query_sales_nd = f"""
     SELECT sor.product_id, sor.reference, SUM(sor.qty) as units_nd
     FROM sal_order_row sor
@@ -38,12 +41,14 @@ def get_data(lookback_days):
       AND so.date >= '{n_days_ago}'
       AND so.is_deleted = 0
       AND sor.is_deleted = 0
+      AND so.type_id = 2
     GROUP BY sor.product_id, sor.reference
     HAVING units_nd > 0
     """
     df_sales_nd = pd.read_sql(query_sales_nd, conn)
     
     if df_sales_nd.empty:
+        conn.close()
         return None
 
     results = []
@@ -65,16 +70,19 @@ def get_data(lookback_days):
         start_date = soldout_date - timedelta(days=30)
         end_date = soldout_date - timedelta(days=1)
         
+        # Modified to get GMV WITHOUT VAT (using bil_document_row and 1.22 fallback)
         query_stats_30d = f"""
         SELECT 
             SUM(sor.qty) as total_qty_30d,
-            SUM(sor.total_price) as total_gmv_30d
+            SUM(COALESCE(bdr.total_price_tax_excl, sor.total_price / 1.22)) as total_gmv_30d
         FROM sal_order_row sor
         JOIN sal_order so ON sor.order_id = so.id
+        LEFT JOIN bil_document_row bdr ON sor.id = bdr.order_row_id
         WHERE sor.product_id = {pid}
           AND so.date BETWEEN '{start_date}' AND '{end_date}'
           AND so.is_deleted = 0
           AND sor.is_deleted = 0
+          AND so.type_id = 2
         """
         stats_res = pd.read_sql(query_stats_30d, conn)
         total_qty = stats_res['total_qty_30d'].iloc[0] or 0
@@ -88,7 +96,7 @@ def get_data(lookback_days):
             'soldout_date': soldout_date,
             'units_last_period': row['units_nd'],
             'avg_qty_day_pre_30d': avg_qty_day,
-            'avg_gmv_day_pre_30d': avg_gmv_day
+            'avg_gmv_day_pre_30d_no_vat': avg_gmv_day
         })
     
     conn.close()
@@ -102,11 +110,11 @@ if __name__ == "__main__":
         df = get_data(days)
         if df is not None:
             avg_qty = df['avg_qty_day_pre_30d'].sum()
-            avg_gmv = df['avg_gmv_day_pre_30d'].sum()
+            avg_gmv = df['avg_gmv_day_pre_30d_no_vat'].sum()
             summary.append({
                 'Periodo (giorni)': f'Ultimi {days} giorni',
                 'Pezzi Medi Giornalieri (Totale)': round(avg_qty, 2),
-                'GMV Medio Giornaliero (Totale)': round(avg_gmv, 2)
+                'GMV Medio Giornaliero Senza IVA (Totale)': round(avg_gmv, 2)
             })
             df['lookback_period'] = days
             all_data.append(df)

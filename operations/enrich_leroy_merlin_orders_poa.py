@@ -30,7 +30,7 @@ def process_file(input_path, output_path, email_recipient=None):
     # Prepare placeholders for IN clause
     format_strings = ','.join(['%s'] * len(order_ids))
     
-    # Query updated with shipment_post logic
+    # Query updated with shipment_post logic and status dates
     query = f"""
     SELECT 
         o.external_reference as order_id,
@@ -39,6 +39,7 @@ def process_file(input_path, output_path, email_recipient=None):
         o.total_refunded as total_refunded,
         s.number as shipment_number,
         t.number as tracking_number,
+        t.departure_date as courier_departure_date,
         w.name as warehouse_name,
         GROUP_CONCAT(DISTINCT s.product_reference SEPARATOR '; ') as products,
         (
@@ -46,13 +47,23 @@ def process_file(input_path, output_path, email_recipient=None):
             FROM lgs_shipment_post p
             JOIN lgs_shipment_post_state_lang psl ON p.state_id = psl.state_id AND psl.lang_id = 1
             WHERE p.shipment_number = s.number AND p.is_deleted = 0
-        ) as post_sales_status
+        ) as post_sales_status,
+        (
+            SELECT MIN(h.creation_time)
+            FROM lgs_shipment_history h
+            WHERE h.shipment_id = s.id AND h.field_name = 'state_id' AND h.new_value = '19'
+        ) as shipment_shipped_date,
+        (
+            SELECT MAX(h.creation_time)
+            FROM lgs_shipment_history h
+            WHERE h.shipment_id = s.id AND h.field_name = 'state_id' AND h.new_value = '99'
+        ) as shipment_delivered_date
     FROM sal_order o
     LEFT JOIN lgs_shipment s ON o.id = s.order_id
     LEFT JOIN lgs_tracking t ON s.tracking_id = t.id
     LEFT JOIN inv_warehouse w ON s.warehouse_id = w.id
     WHERE o.external_reference IN ({format_strings})
-    GROUP BY o.id, o.external_reference, o.date, o.total, o.total_refunded, s.number, t.number, w.name
+    GROUP BY o.id, o.external_reference, o.date, o.total, o.total_refunded, s.number, t.number, t.departure_date, w.name, s.id
     """
     
     cursor = conn.cursor(dictionary=True)
@@ -99,7 +110,9 @@ def process_file(input_path, output_path, email_recipient=None):
         'warehouse_name': 'Magazzino',
         'products': 'Prodotti',
         'order_total': 'Importo Ordine',
-        'post_sales_status': 'Stato Post-Sales'
+        'post_sales_status': 'Stato Post-Sales',
+        'shipment_shipped_date': 'Data Presa in Carico',
+        'shipment_delivered_date': 'Data Consegnato'
     }
     df_output = df_output.rename(columns=column_mapping)
     
@@ -115,8 +128,8 @@ def process_file(input_path, output_path, email_recipient=None):
         send_email(output_path, email_recipient)
 
 def send_email(file_path, recipient):
-    subject = "Dettagli ordini Leroy Merlin per PoA - Report Aggiornato v4"
-    body = "Ciao Ivan,\n\nIn allegato trovi il report 'Dettagli ordini Leroy Merlin per PoA' aggiornato con la logica corretta per lo Stato Post-Sales:\n1. Lo stato è ora recuperato dalla tabella 'lgs_shipment_post' (collegata alla spedizione).\n2. Aggiunta la colonna 'Data Ordine'.\n3. Mantenute le colonne finanziarie e di logistica.\n\nUn saluto,\nJohn Operations"
+    subject = "Dettagli ordini Leroy Merlin per PoA - Report Aggiornato v5"
+    body = "Ciao Ivan,\n\nIn allegato trovi il report 'Dettagli ordini Leroy Merlin per PoA' aggiornato con le nuove date richieste:\n1. Data Presa in Carico: Recuperata dalla storia dei cambi stato (state_id = 19).\n2. Data Consegnato: Recuperata dalla storia dei cambi stato (state_id = 99).\n3. Arricchito con magazzino e stato post-sales.\n\nUn saluto,\nJohn Operations"
     
     env = os.environ.copy()
     env["GOG_KEYRING_PASSWORD"] = "produceshop"

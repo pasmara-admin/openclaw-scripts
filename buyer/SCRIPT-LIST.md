@@ -1,2 +1,3 @@
+- arricchisci_dogana.py: Arricchisce un file (Excel/CSV) con Codice Doganale (col C) e Unità Addizionale (col D) partendo dagli EAN in colonna B.
 - analisi-sku.py: Estrazione dati sku (stock Prestashop, vendite Kanguro, prezzo vendita, prezzo acquisto).
 - check-fattura.py: Script per il controllo incrociato tra fatture fornitori (prezzi/quantità) e listini/vendite Kanguro.

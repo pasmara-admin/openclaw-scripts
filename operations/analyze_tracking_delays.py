@@ -142,6 +142,7 @@ def run_analysis():
             AND s.tracking_id IS NULL 
             AND s.state_id != '99' 
             AND so.state_id != '00'
+            AND (p.state_id IS NULL OR p.state_id NOT IN ('02', '03', '05', '06', '07', '08', '09', '10', '11'))
     """)
     
     shipments = cursor_k.fetchall()
@@ -221,7 +222,7 @@ def run_analysis():
 
 def send_email_gog(count, report_path, recipients):
     subject = f"Report Tracking Delays - {datetime.date.today().strftime('%d/%m/%Y')} ({count} anomalie)"
-    body = f"Ciao,\n\nIn allegato trovi il report aggiornato ad oggi delle spedizioni senza tracking oltre le 48 ore lavorative.\n\nTotale anomalie riscontrate: {count}\n\nUn saluto,\nJohn Operations"
+    body = f"Ciao,\n\nIn allegato trovi il report aggiornato ad oggi delle spedizioni senza tracking oltre i tempi previsti (48 ore lavorative + tempi di preparazione SKU).\n\nTotale anomalie riscontrate: {count}\n\nUn saluto,\nJohn Operations"
 
     env = os.environ.copy()
     env["GOG_KEYRING_PASSWORD"] = "produceshop"
