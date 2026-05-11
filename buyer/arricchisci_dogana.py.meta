@@ -1,0 +1,5 @@
+# HEARTBEAT.md
+
+# Monitoraggio file in arrivo per arricchimento codici doganali.
+# Trigger: "CODICI DOGANALI" + Allegato (.xlsx/.csv)
+# Script: /root/.openclaw/workspace-shared/openclaw-scripts/buyer/arricchisci_dogana.py

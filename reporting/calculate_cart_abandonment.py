@@ -1,107 +1,199 @@
+import os
+import json
 import mysql.connector
+import pandas as pd
 from datetime import datetime, timedelta
+from google.analytics.data_v1beta import BetaAnalyticsDataClient
+from google.analytics.data_v1beta.types import (
+    DateRange,
+    Dimension,
+    Metric,
+    RunReportRequest,
+    Filter,
+    FilterExpression,
+    FilterExpressionList,
+)
+from google.oauth2.credentials import Credentials
 
-def get_db_data():
+def get_ga4_presales_data(property_id, days_ago):
+    token_path = "/root/.openclaw/workspace-marketing/analytics_token.json"
+    creds_path = "/root/.config/gogcli/credentials.json"
+    
+    try:
+        with open(token_path, "r") as f:
+            token_data = json.load(f)
+        with open(creds_path, "r") as f:
+            creds_json = json.load(f)
+            
+        creds = Credentials(
+            token=token_data.get("access_token"),
+            refresh_token=token_data.get("refresh_token"),
+            token_uri="https://oauth2.googleapis.com/token",
+            client_id=creds_json["client_id"],
+            client_secret=creds_json["client_secret"]
+        )
+
+        client = BetaAnalyticsDataClient(credentials=creds)
+        
+        country_filter = FilterExpression(
+            or_group=FilterExpressionList(
+                expressions=[
+                    FilterExpression(filter=Filter(field_name="country", string_filter=Filter.StringFilter(value="Italy"))),
+                    FilterExpression(filter=Filter(field_name="country", string_filter=Filter.StringFilter(value="France"))),
+                    FilterExpression(filter=Filter(field_name="country", string_filter=Filter.StringFilter(value="Germany"))),
+                    FilterExpression(filter=Filter(field_name="country", string_filter=Filter.StringFilter(value="Spain"))),
+                    FilterExpression(filter=Filter(field_name="country", string_filter=Filter.StringFilter(value="Austria"))),
+                ]
+            )
+        )
+        
+        path_filter = FilterExpression(
+            not_expression=FilterExpression(
+                filter=Filter(
+                    field_name="pagePath", 
+                    string_filter=Filter.StringFilter(value="support.produceshop.info", match_type=Filter.StringFilter.MatchType.CONTAINS)
+                )
+            )
+        )
+        
+        title_filter = FilterExpression(
+            not_expression=FilterExpression(
+                filter=Filter(
+                    field_name="pageTitle", 
+                    string_filter=Filter.StringFilter(value="Customer Care", match_type=Filter.StringFilter.MatchType.CONTAINS)
+                )
+            )
+        )
+        
+        combined_filter = FilterExpression(
+            and_group=FilterExpressionList(
+                expressions=[country_filter, path_filter, title_filter]
+            )
+        )
+
+        request = RunReportRequest(
+            property=f"properties/{property_id}",
+            dimensions=[Dimension(name="country")],
+            metrics=[Metric(name="sessions")],
+            date_ranges=[DateRange(start_date=f"{days_ago}daysAgo", end_date="yesterday")],
+            dimension_filter=combined_filter
+        )
+        
+        response = client.run_report(request)
+        data = {row.dimension_values[0].value: int(row.metric_values[0].value) for row in response.rows}
+        return data
+    except Exception as e:
+        print(f"GA4 Error: {e}")
+        return {}
+
+def get_kanguro_orders(days_ago):
+    config = {
+        'host': '34.38.166.212',
+        'user': 'john',
+        'password': '3rmiCyf6d~MZDO41',
+        'database': 'kanguro'
+    }
+    country_map = {
+        'Italy': ['Italia', 'Italy'],
+        'France': ['France', 'Francia'],
+        'Germany': ['Deutschland', 'Germania', 'Germany'],
+        'Spain': ['España', 'Spagna', 'Spain'],
+        'Austria': ['Österreich', 'Austria']
+    }
+    all_variants = [v for variants in country_map.values() for v in variants]
+    
+    try:
+        conn = mysql.connector.connect(**config)
+        cursor = conn.cursor(dictionary=True)
+        query = f"""
+            SELECT delivery_country, COUNT(*) as orders 
+            FROM sal_order 
+            WHERE date >= DATE_SUB(CURDATE(), INTERVAL %s DAY)
+              AND date < CURDATE()
+              AND delivery_country IN ({','.join(['%s']*len(all_variants))})
+              AND type_id = 2
+              AND is_deleted = 0
+            GROUP BY delivery_country
+        """
+        cursor.execute(query, [days_ago] + all_variants)
+        rows = cursor.fetchall()
+        conn.close()
+        
+        normalized = {k: 0 for k in country_map.keys()}
+        for row in rows:
+            for ga4_name, variants in country_map.items():
+                if row['delivery_country'] in variants:
+                    normalized[ga4_name] += row['orders']
+                    break
+        return normalized
+    except Exception as e:
+        print(f"DB Error: {e}")
+        return {}
+
+def get_db_abandonment():
     config = {
         'host': '62.84.190.199',
         'user': 'john',
         'password': 'qARa6aRozi6I',
         'database': 'produceshop'
     }
-    
-    conn = mysql.connector.connect(**config)
-    cursor = conn.cursor(dictionary=True)
-    
-    shops = {
-        'Italia': 1,
-        'Francia': 5,
-        'Germania': 4,
-        'Spagna': 6,
-        'Austria': 9
-    }
-    
+    shops = {'Italy': 1, 'France': 5, 'Germany': 4, 'Spain': 6, 'Austria': 9}
     results = {}
-    
-    for country, shop_id in shops.items():
-        # Ieri (rispetto ad oggi)
-        cursor.execute(f"""
-            SELECT 
-                COUNT(id_cart) as total,
-                SUM(CASE WHEN id_cart NOT IN (SELECT id_cart FROM ps_orders) THEN 1 ELSE 0 END) as abandoned
-            FROM ps_cart 
-            WHERE id_shop = {shop_id} 
-              AND date_add >= DATE_SUB(CURDATE(), INTERVAL 1 DAY) 
-              AND date_add < CURDATE()
-        """)
-        yesterday = cursor.fetchone()
-        
-        # Ultimi 7 giorni (escluso oggi)
-        cursor.execute(f"""
-            SELECT 
-                COUNT(id_cart) as total,
-                SUM(CASE WHEN id_cart NOT IN (SELECT id_cart FROM ps_orders) THEN 1 ELSE 0 END) as abandoned
-            FROM ps_cart 
-            WHERE id_shop = {shop_id} 
-              AND date_add >= DATE_SUB(CURDATE(), INTERVAL 7 DAY) 
-              AND date_add < CURDATE()
-        """)
-        prev_7d = cursor.fetchone()
+    try:
+        conn = mysql.connector.connect(**config)
+        cursor = conn.cursor(dictionary=True)
+        for country, shop_id in shops.items():
+            cursor.execute(f"""
+                SELECT 
+                    COUNT(id_cart) as total,
+                    SUM(CASE WHEN id_cart NOT IN (SELECT id_cart FROM ps_orders) THEN 1 ELSE 0 END) as abandoned
+                FROM ps_cart 
+                WHERE id_shop = {shop_id} AND date_add >= DATE_SUB(CURDATE(), INTERVAL 1 DAY) AND date_add < CURDATE()
+            """)
+            results[country] = cursor.fetchone()
+        conn.close()
+        return results
+    except Exception as e:
+        print(f"PS Error: {e}")
+        return {}
 
-        # Ultimi 30 giorni (escluso oggi)
-        cursor.execute(f"""
-            SELECT 
-                COUNT(id_cart) as total,
-                SUM(CASE WHEN id_cart NOT IN (SELECT id_cart FROM ps_orders) THEN 1 ELSE 0 END) as abandoned
-            FROM ps_cart 
-            WHERE id_shop = {shop_id} 
-              AND date_add >= DATE_SUB(CURDATE(), INTERVAL 30 DAY) 
-              AND date_add < CURDATE()
-        """)
-        prev_30d = cursor.fetchone()
-        
-        results[country] = {
-            'yesterday': yesterday,
-            'prev_7d': prev_7d,
-            'prev_30d': prev_30d
-        }
+def main():
+    property_id = "311921498"
     
-    conn.close()
-    return results
-
-def format_report(db_data, marketing_data=None):
+    # 1. Get Data (Yesterday, 7d, 30d)
+    sess_y = get_ga4_presales_data(property_id, 1)
+    sess_7 = get_ga4_presales_data(property_id, 7)
+    sess_30 = get_ga4_presales_data(property_id, 30)
+    
+    ord_y = get_kanguro_orders(1)
+    ord_7 = get_kanguro_orders(7)
+    ord_30 = get_kanguro_orders(30)
+    
+    abandonment = get_db_abandonment()
+    
+    # 2. Format Report
     yesterday_str = (datetime.now() - timedelta(days=1)).strftime('%d/%m/%Y')
-    report = f"🛒 **REPORT PERFORMANCE & ABBANDONO ({yesterday_str})**\n\n"
-    report += "Analisi incrociata PreSales Traffic (GA4) vs Abbandono Carrello (DB):\n\n"
+    report = f"🛒 **REPORT PERFORMANCE & ABBANDONO ({yesterday_str})**\n"
+    report += "*(Logica Unificata: Traffico Pre-Sales vs Ordini Kanguro)*\n\n"
     
-    for country, stats in db_data.items():
-        # Calcolo Abbandono
-        y_rate = (stats['yesterday']['abandoned'] / stats['yesterday']['total'] * 100) if stats['yesterday']['total'] > 0 else 0
-        s_rate = (stats['prev_7d']['abandoned'] / stats['prev_7d']['total'] * 100) if stats['prev_7d']['total'] > 0 else 0
-        m_rate = (stats['prev_30d']['abandoned'] / stats['prev_30d']['total'] * 100) if stats['prev_30d']['total'] > 0 else 0
+    countries = ['Italy', 'France', 'Germany', 'Spain', 'Austria']
+    for c in countries:
+        # Abbandono (Database PS)
+        stats = abandonment.get(c, {'total': 0, 'abandoned': 0})
+        abb_rate = (stats['abandoned'] / stats['total'] * 100) if stats['total'] > 0 else 0
         
-        report += f"📍 **{country}**\n"
-        report += f"• **Abbandono Ieri: {y_rate:.1f}%** (7gg: {s_rate:.1f}% | 30gg: {m_rate:.1f}%)\n"
+        # CR (GA4 Sessions / Kanguro Orders)
+        cr_y = (ord_y.get(c, 0) / sess_y.get(c, 0) * 100) if sess_y.get(c, 0) > 0 else 0
+        cr_7 = (ord_7.get(c, 0) / sess_7.get(c, 0) * 100) if sess_7.get(c, 0) > 0 else 0
+        cr_30 = (ord_30.get(c, 0) / sess_30.get(c, 0) * 100) if sess_30.get(c, 0) > 0 else 0
         
-        # Integrazione Marketing (CR e Sessioni)
-        if marketing_data and country in marketing_data:
-            m = marketing_data[country]
-            report += f"• **CR PreSales Ieri: {m['cr_y']}** (7gg: {m['cr_7']} | 30gg: {m['cr_30']})\n"
-            report += f"• Sessioni PreSales: {m['sessions']} | Ordini: {m['orders']}\n"
-        
-        report += "\n"
+        report += f"📍 **{c}**\n"
+        report += f"• **CR Pre-Sales: {cr_y:.2f}%** (7gg: {cr_7:.2f}% | 30gg: {cr_30:.2f}%)\n"
+        report += f"• **Abbandono Carrello: {abb_rate:.1f}%**\n"
+        report += f"• Sessioni: {sess_y.get(c, 0)} | Ordini: {ord_y.get(c, 0)}\n\n"
     
-    report += "--- \n*Nota: Il Conversion Rate è calcolato sul traffico PreSales (escl. assistenza/post-vendita).* "
-    return report
+    report += "--- \n*Nota: CR calcolata solo su ordini Canale ProduceShop e traffico depurato da assistenza.*"
+    print(report)
 
 if __name__ == "__main__":
-    # Dati consolidati forniti da John Marketing il 18/03/2026
-    marketing_data = {
-        'Italia':   {'sessions': 13680, 'orders': 48, 'cr_y': '1,87%', 'cr_7': '2,47%', 'cr_30': '2,28%'},
-        'Austria':  {'sessions': 561,   'orders': 9,  'cr_y': '3,03%', 'cr_7': '2,55%', 'cr_30': '2,73%'},
-        'Francia':  {'sessions': 5203,  'orders': 12, 'cr_y': '1,56%', 'cr_7': '1,77%', 'cr_30': '2,39%'},
-        'Spagna':   {'sessions': 2243,  'orders': 7,  'cr_y': '2,50%', 'cr_7': '2,00%', 'cr_30': '1,28%'},
-        'Germania': {'sessions': 8973,  'orders': 11, 'cr_y': '0,37%', 'cr_7': '0,59%', 'cr_30': '0,74%'}
-    }
-    
-    db_data = get_db_data()
-    print(format_report(db_data, marketing_data))
+    main()
