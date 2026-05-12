@@ -3,18 +3,51 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 # Database configuration
-config = {
+config_kanguro = {
     'host': '34.38.166.212',
     'user': 'john',
     'password': '3rmiCyf6d~MZDO41',
     'database': 'kanguro'
 }
 
+config_ps = {
+    'host': '62.84.190.199',
+    'user': 'john',
+    'password': 'qARa6aRozi6I',
+    'database': 'produceshop'
+}
+
+def get_ps_refs_with_stock():
+    """Returns a set of references that have qty > 0 on PrestaShop (IT shop)."""
+    try:
+        import mysql.connector
+        conn = mysql.connector.connect(**config_ps)
+        query = """
+        SELECT p.reference
+        FROM ps_product p
+        JOIN ps_stock_available sa ON p.id_product = sa.id_product AND sa.id_product_attribute = 0
+        WHERE sa.id_shop = 1 AND sa.quantity > 0
+        UNION
+        SELECT pa.reference
+        FROM ps_product_attribute pa
+        JOIN ps_stock_available sa ON pa.id_product_attribute = sa.id_product_attribute
+        WHERE sa.id_shop = 1 AND sa.quantity > 0
+        """
+        df = pd.read_sql(query, conn)
+        conn.close()
+        return set(df['reference'].dropna().unique())
+    except Exception as e:
+        print(f"Error fetching PrestaShop stock: {e}")
+        return set()
+
 def analyze_lost_gmv_for_out_of_stock(refs):
     try:
-        conn = mysql.connector.connect(**config)
+        conn = mysql.connector.connect(**config_kanguro)
         
-        # 1. Identify which of these are currently stock 0
+        # 0. Get PS refs with stock to exclude them
+        exclude_ps_refs = get_ps_refs_with_stock()
+        
+        # 1. Identify which of these are currently stock 0 in Kanguro
         # First get product_ids for the references
         refs_formatted = ",".join([f"'{r}'" for r in refs])
         query_pids = f"SELECT DISTINCT product_id, reference FROM sal_order_row WHERE reference IN ({refs_formatted}) AND is_deleted = 0"
@@ -31,9 +64,12 @@ def analyze_lost_gmv_for_out_of_stock(refs):
         df_oos = pd.merge(df_refs, df_stock, on='product_id', how='left').fillna(0)
         df_oos = df_oos[df_oos['stock'] <= 0]
         
+        # EXCLUSION RULE: Exclude items with qty > 0 on PrestaShop
+        df_oos = df_oos[~df_oos['reference'].isin(exclude_ps_refs)]
+        
         if df_oos.empty:
             conn.close()
-            return "Nessuna delle referenze indicate è attualmente fuori stock."
+            return "Nessuna delle referenze indicate è attualmente fuori stock (o sono ancora disponibili su PrestaShop)."
 
         oos_pids = df_oos['product_id'].tolist()
         results = []

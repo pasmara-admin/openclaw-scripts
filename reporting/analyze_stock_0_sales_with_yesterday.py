@@ -3,15 +3,44 @@ from datetime import datetime, timedelta
 import pandas as pd
 
 # Database configuration
-config = {
+config_kanguro = {
     'host': '34.38.166.212',
     'user': 'john',
     'password': '3rmiCyf6d~MZDO41',
     'database': 'kanguro'
 }
 
-def get_data(lookback_days):
-    conn = mysql.connector.connect(**config)
+config_ps = {
+    'host': '62.84.190.199',
+    'user': 'john',
+    'password': 'qARa6aRozi6I',
+    'database': 'produceshop'
+}
+
+def get_ps_refs_with_stock():
+    """Returns a set of references that have qty > 0 on PrestaShop (IT shop)."""
+    try:
+        conn = mysql.connector.connect(**config_ps)
+        query = """
+        SELECT p.reference
+        FROM ps_product p
+        JOIN ps_stock_available sa ON p.id_product = sa.id_product AND sa.id_product_attribute = 0
+        WHERE sa.id_shop = 1 AND sa.quantity > 0
+        UNION
+        SELECT pa.reference
+        FROM ps_product_attribute pa
+        JOIN ps_stock_available sa ON pa.id_product_attribute = sa.id_product_attribute
+        WHERE sa.id_shop = 1 AND sa.quantity > 0
+        """
+        df = pd.read_sql(query, conn)
+        conn.close()
+        return set(df['reference'].dropna().unique())
+    except Exception as e:
+        print(f"Error fetching PrestaShop stock: {e}")
+        return set()
+
+def get_data(lookback_days, exclude_ps_refs):
+    conn = mysql.connector.connect(**config_kanguro)
     
     # 1. Identify products with stock 0 today, excluding brand_id 12 (Grand Soleil)
     query_stock_0 = """
@@ -47,6 +76,13 @@ def get_data(lookback_days):
     """
     df_sales_nd = pd.read_sql(query_sales_nd, conn)
     
+    if df_sales_nd.empty:
+        conn.close()
+        return None
+
+    # Filter out references that still have stock on PrestaShop
+    df_sales_nd = df_sales_nd[~df_sales_nd['reference'].isin(exclude_ps_refs)]
+
     if df_sales_nd.empty:
         conn.close()
         return None
@@ -105,9 +141,12 @@ if __name__ == "__main__":
     summary = []
     all_data = []
     
+    # Get refs with stock on PrestaShop to exclude them
+    exclude_ps_refs = get_ps_refs_with_stock()
+    
     # Periods to analyze: 1 day (yesterday), 7, 14, 30
     for days in [1, 7, 14, 30]:
-        df = get_data(days)
+        df = get_data(days, exclude_ps_refs)
         if df is not None:
             # We want the SUM of averages for all products that were sold in this period but are now stock 0
             avg_qty = df['avg_qty_day_pre_30d'].sum()
