@@ -10,11 +10,6 @@ def main():
         'database': 'kanguro'
     }
 
-    # Ordini per cui è stata emessa una fattura (type_id = 1) in Reverse Charge (tax rate = 0 / class 7)
-    # in cui l'importo pagato inizialmente (totale ordine, che includeva IVA) è maggiore 
-    # dell'importo esposto in fattura reverse charge
-    # Questa query recupera l'IVA che deve essere restituita, ignorando lo storno ricevuta iniziale
-    # (è implicito dal fatto che c'è ora una fattura reverse charge a fronte di un totale pagato maggiore)
     query = """
     SELECT 
         o.number AS 'Numero Ordine',
@@ -25,7 +20,8 @@ def main():
         ROUND(o.total, 2) AS 'Totale Pagato (con IVA)',
         ROUND(d_inv.total, 2) AS 'Totale Fatturato RC (Senza IVA)',
         ROUND(o.total_refunded, 2) AS 'Totale Rimborsato (Attuale)',
-        ROUND((o.total - d_inv.total) - o.total_refunded, 2) AS 'IVA da Rimborsare'
+        ROUND((o.total - d_inv.total) - o.total_refunded, 2) AS 'IVA da Rimborsare',
+        o.source_srv AS '_source'
     FROM sal_order o
     JOIN bil_document d_inv ON d_inv.order_id = o.id AND d_inv.type_id = 1 AND d_inv.is_deleted = 0
     WHERE o.total > d_inv.total + 0.01 
@@ -38,12 +34,19 @@ def main():
     df = pd.read_sql(query, conn)
     conn.close()
 
-    output_path = '/tmp/ordini_reverse_charge_rimborsi.csv'
+    # Split the dataframe
+    df_sito = df[df['_source'] == 'PS'].drop(columns=['_source'])
+    df_mk = df[df['_source'] == 'MK'].drop(columns=['_source'])
+
+    output_path = '/tmp/ordini_reverse_charge_rimborsi.xlsx'
     if len(sys.argv) > 1:
         output_path = sys.argv[1]
 
-    df.to_excel(output_path, index=False)
-    print(f"Exported {len(df)} reverse charge refund orders to {output_path}")
+    with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
+        df_sito.to_excel(writer, sheet_name='Vendite Sito', index=False)
+        df_mk.to_excel(writer, sheet_name='Vendite Marketplace', index=False)
+
+    print(f"Exported {len(df_sito)} sito and {len(df_mk)} marketplace orders to {output_path}")
 
 if __name__ == "__main__":
     main()
