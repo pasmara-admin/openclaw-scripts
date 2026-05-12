@@ -57,7 +57,7 @@ def generate_igap_order():
         product_id, 
         SUM(qty) as stock_fisico
     FROM inv_inventory_stock
-    WHERE warehouse_id = 1 AND is_deleted = 0
+    WHERE is_deleted = 0
     GROUP BY product_id
     """
     df_stock = run_query(query_stock)
