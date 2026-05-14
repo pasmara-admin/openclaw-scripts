@@ -16,7 +16,7 @@ else
 fi
 
 # Send via OpenClaw (Telegram)
-openclaw message send --channel telegram --target "-5176361873" --message "$(cat /tmp/fatturato_msg.txt)"
+openclaw message send --channel telegram --account marketing --target "-5176361873" --message "$(cat /tmp/fatturato_msg.txt)"
 
 # Send via Email
 GOG_KEYRING_PASSWORD="produceshop" GOG_ACCOUNT="admin@produceshoptech.com" gog gmail send \
