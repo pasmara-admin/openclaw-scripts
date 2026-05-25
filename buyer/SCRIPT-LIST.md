@@ -1,3 +1,6 @@
 - arricchisci_dogana.py: Arricchisce un file (Excel/CSV) con Codice Doganale (col C) e Unità Addizionale (col D) partendo dagli EAN in colonna B.
 - analisi-sku.py: Estrazione dati sku (stock Prestashop, vendite Kanguro, prezzo vendita, prezzo acquisto).
 - check-fattura.py: Script per il controllo incrociato tra fatture fornitori (prezzi/quantità) e listini/vendite Kanguro.
+- monitor_stock_cicognolo_simone.py: Monitoraggio settimanale stock 0 (master + colli) a Cicognolo per Simone Bergantin.
+- ordine_bica.py: Report analisi e file import per ordini BICA (30gg copertura).
+- ordine_igap.py: Report analisi e file import per ordini IGAP (21gg copertura).
