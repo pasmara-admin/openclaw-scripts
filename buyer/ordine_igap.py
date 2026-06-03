@@ -30,7 +30,7 @@ def generate_igap_order():
         p.packaging_pieces as pack_qty,
         p.is_active
     FROM dat_product p
-    WHERE p.supplier_id = 3 AND p.is_deleted = 0
+    WHERE p.supplier_id = 3 AND p.is_deleted = 0 AND p.state_id != '01'
     """
     df_products = run_query(query_products)
     
@@ -47,7 +47,7 @@ def generate_igap_order():
     WHERE s.date >= DATE_SUB(CURDATE(), INTERVAL 60 DAY)
       AND s.is_deleted = 0
     GROUP BY final_product_id
-    HAVING final_product_id IN (SELECT id FROM dat_product WHERE supplier_id = 3 AND is_deleted = 0)
+    HAVING final_product_id IN (SELECT id FROM dat_product WHERE supplier_id = 3 AND is_deleted = 0 AND state_id != '01')
     """
     df_sales = run_query(query_sales)
     
@@ -91,7 +91,7 @@ def generate_igap_order():
     WHERE s.state_id IN ('PR', 'AP', 'PA') 
       AND s.is_deleted = 0
     GROUP BY final_product_id
-    HAVING final_product_id IN (SELECT id FROM dat_product WHERE supplier_id = 3 AND is_deleted = 0)
+    HAVING final_product_id IN (SELECT id FROM dat_product WHERE supplier_id = 3 AND is_deleted = 0 AND state_id != '01')
     """
     df_committed = run_query(query_committed)
 
