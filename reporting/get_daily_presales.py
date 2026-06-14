@@ -130,12 +130,12 @@ def main():
     u_y, o_y, g_y = get_daily_totals(yesterday)
     cr_y = (o_y / u_y * 100) if u_y > 0 else 0.0
 
-    # Comparison Last Week
+    # 1. Utenti Pre-Sales stesso giorno settimana precedente
     lw_date = yesterday - timedelta(days=7)
     u_lw, o_lw, g_lw = get_daily_totals(lw_date)
     cr_lw = (o_lw / u_lw * 100) if u_lw > 0 else 0.0
 
-    # Comparison 4 Weeks Avg
+    # 2. Media dello stesso giorno delle 4 settimane prima
     prev_dates = [yesterday - timedelta(days=7*i) for i in range(1, 5)]
     history = df[df['date'].isin(prev_dates)].groupby('date').sum()
     avg_u = history['users'].mean()
@@ -161,12 +161,12 @@ def main():
         cr = (o / u * 100) if u > 0 else 0.0
         report += f"• {code}: {u:,} Ut | {o} Ord | *{cr:.2f}% CR* | {g:,.2f}€\n"
     
-    report += "\n*Trend ultimi 7 giorni (Pre-Sales):*\n"
-    for i in range(6, -1, -1):
+    report += "\n*Utenti Pre-Sales ultimi 8 giorni:*\n"
+    for i in range(7, -1, -1):
         d = yesterday - timedelta(days=i)
         u_d, o_d, g_d = get_daily_totals(d)
         cr_d = (o_d / u_d * 100) if u_d > 0 else 0.0
-        report += f"• {d.strftime('%d/%m')}: {int(u_d):,} Ut | {int(o_d)} Ord | {cr_d:.2f}% CR\n"
+        report += f"• {d.strftime('%d/%m')}: {int(u_d):,} utenti | {cr_d:.2f}% CR\n"
         
     print(report)
 
