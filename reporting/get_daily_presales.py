@@ -15,6 +15,7 @@ from google.analytics.data_v1beta.types import (
     FilterExpressionList,
 )
 from google.oauth2.credentials import Credentials
+from google.auth.transport.requests import Request
 
 # Kanguro Config
 DB_HOST = "34.38.166.212"
@@ -41,13 +42,24 @@ def get_ga4_data(property_id, start_date, end_date):
     with open(token_path, "r") as f: token_data = json.load(f)
     with open(creds_path, "r") as f: creds_json = json.load(f)
         
+    access_token = token_data.get("access_token")
+    if access_token == "placeholder":
+        access_token = None
+        
     creds = Credentials(
-        token=token_data.get("access_token"),
+        token=access_token,
         refresh_token=token_data.get("refresh_token"),
         token_uri="https://oauth2.googleapis.com/token",
         client_id=creds_json["client_id"],
         client_secret=creds_json["client_secret"]
     )
+
+    if not creds.valid:
+        if creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            token_data["access_token"] = creds.token
+            with open(token_path, "w") as f:
+                json.dump(token_data, f)
 
     client = BetaAnalyticsDataClient(credentials=creds)
     
