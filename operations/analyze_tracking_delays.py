@@ -143,6 +143,8 @@ def run_analysis():
             AND s.state_id != '99' 
             AND so.state_id != '00'
             AND (p.state_id IS NULL OR p.state_id NOT IN ('02', '03', '05', '06', '07', '08', '09', '10', '11'))
+            AND NOT EXISTS (SELECT 1 FROM lgs_waybill w WHERE w.shipment_number = s.number AND w.is_deleted = 0)
+            AND NOT EXISTS (SELECT 1 FROM lgs_tracking t WHERE t.shipment_number = s.number AND t.is_deleted = 0)
     """)
     
     shipments = cursor_k.fetchall()
