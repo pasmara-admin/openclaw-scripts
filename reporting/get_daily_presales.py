@@ -43,23 +43,24 @@ def get_ga4_data(property_id, start_date, end_date):
     with open(creds_path, "r") as f: creds_json = json.load(f)
         
     access_token = token_data.get("access_token")
-    if access_token == "placeholder":
-        access_token = None
-        
+    refresh_token = token_data.get("refresh_token")
+    
     creds = Credentials(
         token=access_token,
-        refresh_token=token_data.get("refresh_token"),
+        refresh_token=refresh_token,
         token_uri="https://oauth2.googleapis.com/token",
         client_id=creds_json["client_id"],
         client_secret=creds_json["client_secret"]
     )
 
-    if not creds.valid:
-        if creds.expired and creds.refresh_token:
-            creds.refresh(Request())
-            token_data["access_token"] = creds.token
-            with open(token_path, "w") as f:
-                json.dump(token_data, f)
+    # Force refresh if token might be stale
+    try:
+        creds.refresh(Request())
+        token_data["access_token"] = creds.token
+        with open(token_path, "w") as f:
+            json.dump(token_data, f)
+    except Exception as e:
+        print(f"DEBUG: Refresh failed: {e}")
 
     client = BetaAnalyticsDataClient(credentials=creds)
     
@@ -119,7 +120,15 @@ def main():
     df_orders['date'] = pd.to_datetime(df_orders['date']).dt.date
     
     # GA4 Data
-    df_ga4 = get_ga4_data("311921498", start_history, yesterday)
+    # df_ga4 = get_ga4_data("311921498", start_history, yesterday)
+    
+    # Try manual access token if current one is invalid
+    try:
+        df_ga4 = get_ga4_data("311921498", start_history, yesterday)
+    except Exception as e:
+        print(f"⚠️ ATTENZIONE: Errore GA4 (Token scaduto o invalido): {e}")
+        # Create empty df with expected columns
+        df_ga4 = pd.DataFrame(columns=['date', 'country', 'users'])
     
     # Mapping
     countries_map = {
