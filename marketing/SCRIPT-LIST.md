@@ -32,3 +32,4 @@ Lista minimale degli script per il dipartimento Marketing. Consultare prima di c
 | check_wallaby_prices.py | Controlla i prezzi finali (IVA incl.) su Wallaby per una lista di SKU (main o varianti) ordinati per prezzo. |
 - update_sarmog_delivery.py: Genera la query SQL per impostare 10 giorni di consegna ai prodotti Sarmog.
 - get_save_returns.py: Estrazione report spedizioni/ritorni (SAVE) con dettaglio magazzino.
+- classify_save_returns.py: Classificazione spedizioni senza esito (NO AFFIDO INFORMATICO / NO AFFIDO REALE).
